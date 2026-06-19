@@ -268,6 +268,8 @@ let searchTerm = "";
 let WEBAPP_URL = "";            // se carga de localStorage de la PC
 let saveTimer = null;
 let lastSavedJSON = "";
+let readyToSave = false;   // candado: no guardar hasta cargar bien desde Drive
+let driveHadData = false;  // true si Drive ya tenía datos al iniciar
 
 function getStatusEl(){return document.getElementById('syncStatus');}
 function setStatus(kind,txt){
@@ -320,6 +322,7 @@ async function pushToDrive(){
 // Guardado automático con retardo (2s después de dejar de editar)
 function dbSave(){
   if(!WEBAPP_URL){ setStatus('idle','Sin conexión'); return; }
+  if(!readyToSave){ return; }  // candado: nunca guardar antes de cargar desde Drive
   setStatus('dirty','Sin guardar…');
   clearTimeout(saveTimer);
   saveTimer = setTimeout(()=>{ pushToDrive(); }, 1800);
@@ -595,6 +598,7 @@ document.getElementById('mmConfirm').onclick=async()=>{
     });
   }
   DB.months[name]=nm; DB.order.push(name); DB.current=name;
+  readyToSave=true;
   if(WEBAPP_URL) await pushToDrive(); closeModal('modalMonth'); render();
   toast('Mes "'+name+'" creado. Saldos finales trasladados como inicial.');
 };
@@ -717,7 +721,7 @@ document.getElementById('btnExport').onclick=()=>{
 document.getElementById('btnImport').onclick=()=>document.getElementById('fileImport').click();
 document.getElementById('fileImport').onchange=e=>{
   const f=e.target.files[0];if(!f)return;const rd=new FileReader();
-  rd.onload=async()=>{try{const d=JSON.parse(rd.result);if(d.months&&d.order){DB=d;if(WEBAPP_URL)await pushToDrive();render();toast('Datos importados');}else toast('Archivo inválido');}catch(err){toast('Error al leer archivo');}};
+  rd.onload=async()=>{try{const d=JSON.parse(rd.result);if(d.months&&d.order){DB=d;readyToSave=true;driveHadData=true;if(WEBAPP_URL)await pushToDrive();render();toast('Datos importados');}else toast('Archivo inválido');}catch(err){toast('Error al leer archivo');}};
   rd.readAsText(f);
 };
 
@@ -743,13 +747,22 @@ document.getElementById('cfgSave').onclick=async()=>{
   closeModal('modalConfig');
   toast('Conexión guardada en esta computadora');
   // al conectar, traer lo que haya en Drive
-  const d=await dbLoad();
-  if(d){ DB=d; render(); toast('Datos cargados desde Drive'); }
-  else { await pushToDrive(); } // sube lo que haya local (semilla) si la planilla está vacía
+  let d=null;
+  try{ d=await pullFromDrive(); }catch(e){ d=null; }
+  if(d && d.order && d.order.length){
+    DB=d; driveHadData=true; readyToSave=true;
+    setStatus('ok','Guardado'); render(); toast('Datos cargados desde Drive');
+  }else{
+    // Drive vacío o sin respuesta: NO subir nada automáticamente.
+    driveHadData=false; readyToSave=false;
+    setStatus('err','Drive sin datos');
+    toast('La planilla está vacía o no respondió. Importá tu historial y luego usá "Guardar ahora".');
+  }
 };
 document.getElementById('btnSaveNow').onclick=async()=>{
   if(!WEBAPP_URL){ toast('Primero configurá la conexión (⚙)'); return; }
   clearTimeout(saveTimer);
+  readyToSave=true;            // guardado manual explícito: el usuario lo decide
   const ok=await pushToDrive();
   toast(ok?'Guardado en Drive':'No se pudo guardar');
 };
@@ -785,19 +798,32 @@ window.addEventListener('appinstalled', () => {
 (async function init(){
   const _logo=document.getElementById('brandLogo'); if(_logo) _logo.src=LOGO_SMALL;
   loadUrl();
-  let loaded=null;
-  try{ loaded=await dbLoad(); }catch(e){}
-  if(loaded && loaded.order && loaded.order.length){
-    DB=loaded;
+
+  if(WEBAPP_URL){
+    // Hay conexión configurada: SIEMPRE mandan los datos de Drive.
+    let loaded=null;
+    try{ loaded=await pullFromDrive(); }catch(e){ loaded=null; }
+    if(loaded && loaded.order && loaded.order.length){
+      DB=loaded; driveHadData=true; readyToSave=true;   // ya se puede guardar
+      setStatus('ok','Guardado');
+      render();
+    }else{
+      // Drive no respondió o está vacío: NO pisar. Mostrar aviso y bloquear guardado.
+      driveHadData=false; readyToSave=false;
+      const start='5_MAYO (al 01/06/26)';
+      DB={months:{[start]:freshMonthFromSeed()},order:[start],current:start};
+      setStatus('err','No se pudo leer Drive');
+      render();
+      setTimeout(()=>toast('No pude leer tus datos de Drive. No cargues nada: tocá ⚙ Conexión para reintentar.'),600);
+    }
   }else{
+    // Sin conexión configurada: modo local de arranque (solo para configurar).
     const start='5_MAYO (al 01/06/26)';
     DB={months:{[start]:freshMonthFromSeed()},order:[start],current:start};
-    if(WEBAPP_URL){ await pushToDrive(); }   // siembra la planilla la primera vez
-    else { setStatus('idle','Sin conexión'); }
-  }
-  render();
-  if(!WEBAPP_URL){
-    setTimeout(()=>toast('Tip: configurá la conexión con Drive en ⚙ para sincronizar entre computadoras'),900);
+    readyToSave=false;
+    setStatus('idle','Sin conexión');
+    render();
+    setTimeout(()=>toast('Configurá la conexión con Drive en ⚙ para ver tus datos.'),900);
   }
 })();
 </script>
