@@ -67,6 +67,22 @@
   td input.desc-in{width:100%;text-align:left}
   td input.inv{width:64px;background:#fffbe9;border-color:#f0e3b8}
   .money-cell{white-space:nowrap}
+  .mv-cell{cursor:pointer;position:relative;font-weight:600;user-select:none}
+  .mv-cell:hover{background:#dceaf7!important}
+  .col-dk.mv-cell:hover{background:#f6e3d4!important}
+  .mv-caret{font-size:9px;color:#8a93a0;margin-left:3px;vertical-align:middle}
+  #mvPop{position:absolute;z-index:80;background:#fff;border:1px solid #c4ccd6;border-radius:10px;box-shadow:0 8px 28px rgba(15,30,50,.22);padding:12px;width:210px;display:none}
+  #mvPop.show{display:block}
+  #mvPop h4{margin:0 0 8px;font-size:12px;color:var(--accent2);display:flex;justify-content:space-between;align-items:center}
+  #mvPop .mv-items{max-height:150px;overflow:auto;margin-bottom:8px}
+  #mvPop .mv-item{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px dashed #e3e6ec}
+  #mvPop .mv-item span.q{flex:1;text-align:right;font-variant-numeric:tabular-nums}
+  #mvPop .mv-item button{background:none;border:none;color:#c0392b;cursor:pointer;font-size:13px;padding:0 4px}
+  #mvPop .mv-total{font-weight:700;text-align:right;border-top:2px solid var(--accent2);padding-top:5px;margin-bottom:8px;font-size:13px}
+  #mvPop .mv-add{display:flex;gap:5px}
+  #mvPop .mv-add input{flex:1;width:auto;text-align:right;border:1px solid var(--line);border-radius:6px;padding:5px}
+  #mvPop .mv-add button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-weight:700;cursor:pointer}
+  #mvPop .mv-empty{color:var(--muted);font-size:11px;text-align:center;padding:6px 0}
   .money-cell .sym{color:#8a93a0;margin-right:1px}
   .price-wrap{display:inline-flex;align-items:center;gap:1px;justify-content:flex-end}
   .price-wrap .sym{color:#8a93a0}
@@ -228,6 +244,9 @@
   </div>
 </div>
 
+<!-- Popover de movimientos -->
+<div id="mvPop"></div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -330,9 +349,21 @@ function freshMonthFromSeed(){
   return m;
 }
 
+// Un campo de movimiento puede ser un número (viejo) o un array de cantidades (nuevo).
+// mvSum: total del campo. mvList: array de cantidades. mvSet: guarda el array.
+function mvSum(v){
+  if(Array.isArray(v)) return v.reduce((a,b)=>a+num(b),0);
+  return num(v);
+}
+function mvList(v){
+  if(Array.isArray(v)) return v.map(x=>num(x));
+  const n=num(v);
+  return n? [n] : [];
+}
+
 function calcItem(it){
-  const aSaldo = num(it.inicial)+num(it.a_entran)-num(it.a_salen);
-  const dSaldo = num(it.d_entran)-num(it.d_salen);
+  const aSaldo = num(it.inicial)+mvSum(it.a_entran)-mvSum(it.a_salen);
+  const dSaldo = mvSum(it.d_entran)-mvSum(it.d_salen);
   const final = aSaldo + dSaldo;
   const invSet = it.inv!==null && it.inv!=='' && it.inv!==undefined;
   const diff = invSet ? (num(it.inv)-final) : null;
@@ -367,8 +398,8 @@ function renderTable(){
   let rows='';
   items.forEach((it,i)=>{
     const c=calcItem(it);
-    totIni+=num(it.inicial);totAS+=num(it.a_salen);totAE+=num(it.a_entran);totASaldo+=c.aSaldo;
-    totDS+=num(it.d_salen);totDE+=num(it.d_entran);totDSaldo+=c.dSaldo;totFinal+=c.final;totVal+=c.valFinal;
+    totIni+=num(it.inicial);totAS+=mvSum(it.a_salen);totAE+=mvSum(it.a_entran);totASaldo+=c.aSaldo;
+    totDS+=mvSum(it.d_salen);totDE+=mvSum(it.d_entran);totDSaldo+=c.dSaldo;totFinal+=c.final;totVal+=c.valFinal;
     if(c.diff!==null)totValDiff+=c.valDiff;
     const hide = searchTerm && !it.desc.toLowerCase().includes(searchTerm);
     if(hide) return;
@@ -378,11 +409,11 @@ function renderTable(){
       <td class="desc"><input class="desc-in" value="${esc(it.desc)}" onchange="upd(${i},'desc',this.value)"></td>
       <td><span class="price-wrap"><span class="sym">$</span><input class="price" type="number" value="${it.precio}" onchange="upd(${i},'precio',this.value)"></span></td>
       <td class="col-ini"><input type="number" value="${it.inicial}" onchange="upd(${i},'inicial',this.value)"></td>
-      <td class="col-an"><input type="number" value="${it.a_salen}" onchange="upd(${i},'a_salen',this.value)"></td>
-      <td class="col-an"><input type="number" value="${it.a_entran}" onchange="upd(${i},'a_entran',this.value)"></td>
+      <td class="col-an mv-cell" onclick="openMv(${i},'a_salen',this)">${fmt(mvSum(it.a_salen))}<span class="mv-caret">▾</span></td>
+      <td class="col-an mv-cell" onclick="openMv(${i},'a_entran',this)">${fmt(mvSum(it.a_entran))}<span class="mv-caret">▾</span></td>
       <td class="col-an saldo ${c.aSaldo<0?'neg':''}">${fmt(c.aSaldo)}</td>
-      <td class="col-dk"><input type="number" value="${it.d_salen}" onchange="upd(${i},'d_salen',this.value)"></td>
-      <td class="col-dk"><input type="number" value="${it.d_entran}" onchange="upd(${i},'d_entran',this.value)"></td>
+      <td class="col-dk mv-cell" onclick="openMv(${i},'d_salen',this)">${fmt(mvSum(it.d_salen))}<span class="mv-caret">▾</span></td>
+      <td class="col-dk mv-cell" onclick="openMv(${i},'d_entran',this)">${fmt(mvSum(it.d_entran))}<span class="mv-caret">▾</span></td>
       <td class="col-dk saldo ${c.dSaldo<0?'neg':''}">${fmt(c.dSaldo)}</td>
       <td class="col-fin ${c.final<0?'neg':''}">${fmt(c.final)}</td>
       <td><input class="inv" type="number" value="${it.inv===null||it.inv===undefined?'':it.inv}" placeholder="—" onchange="upd(${i},'inv',this.value)"></td>
@@ -461,6 +492,78 @@ async function delItem(i){
   if(!confirm('¿Eliminar "'+it.desc+'"?'))return;
   currentItems().splice(i,1); await dbSave(); render(); toast('Artículo eliminado');
 }
+
+// ---- Movimientos (popover) ----
+let mvCtx=null; // {i, field}
+const FIELD_LABEL={a_salen:'Añasco — Salen',a_entran:'Añasco — Entran',d_salen:'Dickman — Salen',d_entran:'Dickman — Entran'};
+
+function openMv(i, field, cell){
+  mvCtx={i, field};
+  const pop=document.getElementById('mvPop');
+  renderMvPop();
+  pop.classList.add('show');
+  // position under the clicked cell
+  const r=cell.getBoundingClientRect();
+  let left=window.scrollX + r.left;
+  let top=window.scrollY + r.bottom + 4;
+  // keep inside viewport
+  const pw=220;
+  if(left+pw > window.scrollX+document.documentElement.clientWidth)
+    left = window.scrollX+document.documentElement.clientWidth - pw - 8;
+  pop.style.left=left+'px';
+  pop.style.top=top+'px';
+  setTimeout(()=>{const inp=document.getElementById('mvAddInput'); if(inp) inp.focus();},30);
+}
+function closeMv(){ const p=document.getElementById('mvPop'); if(p) p.classList.remove('show'); mvCtx=null; }
+
+function renderMvPop(){
+  if(!mvCtx) return;
+  const it=currentItems()[mvCtx.i];
+  const list=mvList(it[mvCtx.field]);
+  const total=list.reduce((a,b)=>a+b,0);
+  let itemsHtml = list.length
+    ? list.map((q,k)=>`<div class="mv-item"><span class="q">${fmt(q)}</span><button onclick="delMv(${k})" title="Quitar">✕</button></div>`).join('')
+    : '<div class="mv-empty">Sin movimientos cargados</div>';
+  const pop=document.getElementById('mvPop');
+  pop.innerHTML=`
+    <h4>${FIELD_LABEL[mvCtx.field]}<button onclick="closeMv()" style="background:none;border:none;cursor:pointer;color:#8a93a0;font-size:14px">✕</button></h4>
+    <div class="mv-items">${itemsHtml}</div>
+    <div class="mv-total">Total: ${fmt(total)}</div>
+    <div class="mv-add">
+      <input id="mvAddInput" type="number" placeholder="+ cantidad" onkeydown="if(event.key==='Enter')addMv()">
+      <button onclick="addMv()">Sumar</button>
+    </div>`;
+}
+async function addMv(){
+  if(!mvCtx) return;
+  const inp=document.getElementById('mvAddInput');
+  const v=num(inp.value);
+  if(!v){ inp.focus(); return; }
+  const it=currentItems()[mvCtx.i];
+  const list=mvList(it[mvCtx.field]);
+  list.push(v);
+  it[mvCtx.field]=list;
+  await dbSave();
+  renderMvPop(); renderCards(); renderTable();
+  const ni=document.getElementById('mvAddInput'); if(ni){ni.value=''; ni.focus();}
+}
+async function delMv(k){
+  if(!mvCtx) return;
+  const it=currentItems()[mvCtx.i];
+  const list=mvList(it[mvCtx.field]);
+  list.splice(k,1);
+  it[mvCtx.field]= list.length?list:0;
+  await dbSave();
+  renderMvPop(); renderCards(); renderTable();
+}
+// cerrar popover al hacer clic fuera
+document.addEventListener('mousedown', e=>{
+  const pop=document.getElementById('mvPop');
+  if(!pop || !pop.classList.contains('show')) return;
+  if(pop.contains(e.target)) return;
+  if(e.target.classList && e.target.classList.contains('mv-cell')) return;
+  closeMv();
+});
 
 // ---- Toast ----
 let toastT;
