@@ -157,6 +157,7 @@
     <span id="syncStatus" class="sync sync-idle">● Sin conexión</span>
     <button class="ghost small" id="btnInstall" style="display:none">⤓ Instalar app</button>
     <button class="ghost small" id="btnSaveNow">💾 Guardar ahora</button>
+    <button class="ghost small" id="btnTestWrite">🧪 Probar guardado</button>
     <button class="ghost small" id="btnConfig">⚙ Conexión</button>
     <button class="ghost small" id="btnExport">⬇ Respaldo</button>
     <button class="ghost small" id="btnImport">⬆ Importar</button>
@@ -177,6 +178,7 @@
     </div>
     <div class="sp" style="flex:1"></div>
     <input type="text" id="search" placeholder="🔎 Buscar artículo…" style="min-width:220px">
+    <button class="ghost small" id="btnIncrease">💲 Aplicar aumento</button>
     <button class="ghost small" id="btnAddItem">+ Agregar artículo</button>
   </div>
 
@@ -240,6 +242,34 @@
     <div class="actions">
       <button class="ghost" onclick="closeModal('modalItem')">Cancelar</button>
       <button id="aiConfirm">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal aplicar aumento -->
+<div class="modal-bg" id="modalInc">
+  <div class="modal" style="max-width:560px">
+    <h3>Aplicar aumento de precios</h3>
+    <p style="margin-top:0">Afecta solo al mes actual (<b id="incMonth"></b>) en adelante. Los meses anteriores conservan su precio.</p>
+    <div class="field">
+      <label>Categorías a las que aplicar</label>
+      <div id="incCats" style="display:flex;flex-direction:column;gap:5px"></div>
+    </div>
+    <div class="field" style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:120px">
+        <label>Porcentaje de aumento (%)</label>
+        <input type="number" id="incPct" value="5.9" step="0.1">
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);padding-bottom:8px">
+        <input type="checkbox" id="incRound" checked style="width:auto"> Redondear a la decena
+      </label>
+      <button class="ghost" id="incPreview" style="padding-bottom:8px">Ver vista previa</button>
+    </div>
+    <div id="incPreviewBox" style="display:none;max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin:6px 0"></div>
+    <div id="incHist" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+    <div class="actions">
+      <button class="ghost" onclick="closeModal('modalInc')">Cancelar</button>
+      <button id="incApply" disabled>Aplicar aumento</button>
     </div>
   </div>
 </div>
@@ -309,13 +339,39 @@ async function pushToDrive(){
   const body = JSON.stringify(DB);
   setStatus('saving','Guardando…');
   try{
-    // text/plain evita preflight CORS con Apps Script
-    const r = await fetch(WEBAPP_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body});
-    const j = await r.json();
-    if(j.ok){ lastSavedJSON=body; setStatus('ok','Guardado'); return true; }
+    // FormData: Apps Script lo recibe en e.parameter.payload de forma confiable,
+    // sin preflight CORS ni problemas de content-type.
+    const fd = new FormData();
+    fd.append('payload', body);
+    const r = await fetch(WEBAPP_URL, {method:'POST', body:fd});
+    const txt = await r.text();
+    let j=null; try{ j=JSON.parse(txt); }catch(e){ j=null; }
+    if(j && j.ok){ lastSavedJSON=body; setStatus('ok','Guardado'); return true; }
     setStatus('err','Error al guardar'); return false;
   }catch(e){
     setStatus('err','Sin guardar (revisá conexión)'); return false;
+  }
+}
+
+// Prueba de escritura: guarda un valor y lo vuelve a leer para confirmar de verdad
+async function testWrite(){
+  if(!WEBAPP_URL){ toast('Configurá la conexión primero (⚙)'); return; }
+  const marca = 'PRUEBA_'+Date.now();
+  setStatus('saving','Probando guardado…');
+  try{
+    const fd=new FormData(); fd.append('ping', marca);
+    const r=await fetch(WEBAPP_URL,{method:'POST', body:fd});
+    const txt=await r.text();
+    let j=null; try{ j=JSON.parse(txt); }catch(e){}
+    if(j && j.ok && j.pong===marca){
+      setStatus('ok','Guardado'); toast('✓ La escritura a Drive FUNCIONA');
+    }else{
+      setStatus('err','Escritura no confirmada');
+      toast('La escritura NO se confirmó. Respuesta: '+txt.slice(0,80));
+    }
+  }catch(e){
+    setStatus('err','Sin conexión de escritura');
+    toast('Error de escritura: '+String(e).slice(0,80));
   }
 }
 
@@ -625,6 +681,90 @@ document.getElementById('aiConfirm').onclick=async()=>{
 // Search
 document.getElementById('search').oninput=e=>{searchTerm=e.target.value.toLowerCase();renderTable();};
 
+// ---- Aplicar aumento de precios ----
+function roundTen(n){ return Math.round(n/10)*10; }
+function computeNewPrice(old, pct, round){
+  let v = old * (1 + pct/100);
+  if(round) v = roundTen(v);
+  else v = Math.round(v*100)/100;
+  return v;
+}
+document.getElementById('btnIncrease').onclick=()=>{
+  document.getElementById('incMonth').textContent=DB.current;
+  // checkboxes de categorías
+  const box=document.getElementById('incCats'); box.innerHTML='';
+  CATS.forEach(c=>{
+    const id='incc_'+c.replace(/\s/g,'_');
+    const pre = (c==='Cajas'||c==='Cajas DT'||c==='Estuches y Archivo');
+    box.innerHTML+=`<label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink)">
+      <input type="checkbox" class="inc-cat" value="${c}" ${pre?'checked':''} style="width:auto"> ${c}</label>`;
+  });
+  document.getElementById('incPreviewBox').style.display='none';
+  document.getElementById('incApply').disabled=true;
+  renderIncHistory();
+  openModal('modalInc');
+};
+function selectedIncCats(){
+  return Array.from(document.querySelectorAll('.inc-cat:checked')).map(c=>c.value);
+}
+document.getElementById('incPreview').onclick=()=>{
+  const cats=selectedIncCats();
+  const pct=num(document.getElementById('incPct').value);
+  const round=document.getElementById('incRound').checked;
+  if(!cats.length){ toast('Elegí al menos una categoría'); return; }
+  if(!pct){ toast('Poné un porcentaje'); return; }
+  const m=DB.months[DB.current];
+  let rows='', n=0;
+  cats.forEach(cat=>{
+    (m[cat]||[]).forEach(it=>{
+      if(!num(it.precio)) return;
+      const np=computeNewPrice(num(it.precio),pct,round);
+      n++;
+      rows+=`<tr><td style="text-align:left;padding:3px 8px">${escHtml(it.desc)}</td>
+        <td style="text-align:right;padding:3px 8px;color:#888">${money(it.precio)}</td>
+        <td style="text-align:center;color:#888">→</td>
+        <td style="text-align:right;padding:3px 8px;font-weight:700;color:var(--accent2)">${money(np)}</td></tr>`;
+    });
+  });
+  const box=document.getElementById('incPreviewBox');
+  box.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="position:sticky;top:0;background:#eef1f5">
+      <th style="text-align:left;padding:5px 8px">Artículo</th>
+      <th style="padding:5px 8px">Actual</th><th></th><th style="padding:5px 8px">Nuevo</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  box.style.display='block';
+  document.getElementById('incApply').disabled = (n===0);
+};
+document.getElementById('incApply').onclick=async()=>{
+  const cats=selectedIncCats();
+  const pct=num(document.getElementById('incPct').value);
+  const round=document.getElementById('incRound').checked;
+  if(!cats.length||!pct) return;
+  const m=DB.months[DB.current];
+  let n=0;
+  cats.forEach(cat=>{
+    (m[cat]||[]).forEach(it=>{
+      if(!num(it.precio)) return;
+      it.precio=computeNewPrice(num(it.precio),pct,round); n++;
+    });
+  });
+  // historial de aumentos
+  if(!DB.increases) DB.increases=[];
+  DB.increases.push({fecha:new Date().toISOString().slice(0,10), mes:DB.current,
+    pct:pct, cats:cats, round:round, afectados:n});
+  readyToSave=true;
+  if(WEBAPP_URL) await pushToDrive();
+  closeModal('modalInc'); render();
+  toast(`Aumento del ${pct}% aplicado a ${n} artículos`);
+};
+function renderIncHistory(){
+  const el=document.getElementById('incHist');
+  const list=(DB.increases||[]).slice(-6).reverse();
+  if(!list.length){ el.innerHTML='<i>Sin aumentos registrados todavía.</i>'; return; }
+  el.innerHTML='<b>Últimos aumentos:</b><br>'+list.map(a=>
+    `· ${a.fecha} — ${a.pct}% en ${a.cats.join(', ')} (${a.afectados} art., mes ${a.mes})`).join('<br>');
+}
+
 // Print
 document.getElementById('btnPrint').onclick=()=>{ buildPrint(); window.print(); };
 function buildPrint(){
@@ -766,6 +906,7 @@ document.getElementById('btnSaveNow').onclick=async()=>{
   const ok=await pushToDrive();
   toast(ok?'Guardado en Drive':'No se pudo guardar');
 };
+document.getElementById('btnTestWrite').onclick=()=>testWrite();
 
 // ---- PWA: registro del service worker e instalación ----
 if ('serviceWorker' in navigator) {
