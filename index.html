@@ -420,10 +420,15 @@ function mvList(v){
   return n? [n] : [];
 }
 
-function calcItem(it){
-  // El stock inicial YA está incluido dentro de "Entran" (como en la planilla original).
-  // Por eso el saldo es Entran − Salen, sin sumar el inicial aparte.
-  const aSaldo = mvSum(it.a_entran)-mvSum(it.a_salen);
+// Categorías donde el saldo = Inicial + Entran − Salen (el inicial es aparte).
+// En el resto, el inicial ya está incluido en "Entran", así que saldo = Entran − Salen.
+const CATS_SUMA_INICIAL = ["Rollos y Cintas"];
+
+function calcItem(it, cat){
+  const categoria = cat || activeCat;
+  const sumaInicial = CATS_SUMA_INICIAL.includes(categoria);
+  const base = sumaInicial ? num(it.inicial) : 0;
+  const aSaldo = base + mvSum(it.a_entran)-mvSum(it.a_salen);
   const dSaldo = mvSum(it.d_entran)-mvSum(it.d_salen);
   const final = aSaldo + dSaldo;
   const invSet = it.inv!==null && it.inv!=='' && it.inv!==undefined;
@@ -524,7 +529,7 @@ function renderCards(){
   const m=DB.months[DB.current]||{};
   let totVal=0,totUnits=0,diffUnits=0,diffVal=0,counted=0,items=0;
   for(const c of CATS){ (m[c]||[]).forEach(it=>{
-    const r=calcItem(it); totVal+=r.valFinal; totUnits+=r.final; items++;
+    const r=calcItem(it,c); totVal+=r.valFinal; totUnits+=r.final; items++;
     if(r.diff!==null){counted++; diffUnits+=r.diff; diffVal+=r.valDiff;}
   });}
   const cards=document.getElementById('cards');
@@ -649,13 +654,19 @@ document.getElementById('mmConfirm').onclick=async()=>{
   const prev=DB.months[DB.current];
   const nm={};
   for(const c of CATS){
+    const sumaInicial = CATS_SUMA_INICIAL.includes(c);
     nm[c]=(prev[c]||[]).map(it=>{
-      const r=calcItem(it);
+      const r=calcItem(it,c);
       // El saldo final del mes anterior es el stock de arranque del nuevo mes.
-      // Como el inicial vive dentro de "Entran", lo ponemos ahí (en Añasco),
-      // y lo dejamos también en "inicial" como dato informativo.
-      return {desc:it.desc,precio:it.precio,inicial:r.final,
-        a_salen:0,a_entran:r.final,d_salen:0,d_entran:0,inv:null};
+      if(sumaInicial){
+        // Rollos/Cintas: el inicial es columna aparte -> el saldo va a "inicial".
+        return {desc:it.desc,precio:it.precio,inicial:r.final,
+          a_salen:0,a_entran:0,d_salen:0,d_entran:0,inv:null};
+      }else{
+        // Resto: el inicial vive dentro de "Entran" -> el saldo va a "entran" de Añasco.
+        return {desc:it.desc,precio:it.precio,inicial:r.final,
+          a_salen:0,a_entran:r.final,d_salen:0,d_entran:0,inv:null};
+      }
     });
   }
   DB.months[name]=nm; DB.order.push(name); DB.current=name;
@@ -775,7 +786,7 @@ document.getElementById('btnPrint').onclick=()=>{ buildPrint(); window.print(); 
 function buildPrint(){
   const m=DB.months[DB.current]||{};
   const ph=document.getElementById('printHeader');
-  let totVal=0; for(const c of CATS)(m[c]||[]).forEach(it=>totVal+=calcItem(it).valFinal);
+  let totVal=0; for(const c of CATS)(m[c]||[]).forEach(it=>totVal+=calcItem(it,c).valFinal);
   ph.innerHTML=`<div style="display:flex;align-items:center;gap:14px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
       <img src="${LOGO_PRINT}" alt="EG Corrugados" style="height:54px;width:auto">
       <div>
@@ -796,7 +807,7 @@ function buildCountSheet(){
     if(!items.length) continue;
     body+=`<tr class="cat"><td colspan="5">${cat}</td></tr>`;
     items.forEach(it=>{
-      const c=calcItem(it);
+      const c=calcItem(it,cat);
       body+=`<tr>
         <td class="d">${escHtml(it.desc)}</td>
         <td class="n">${fmt(c.aSaldo)}</td>
