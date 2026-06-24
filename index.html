@@ -295,7 +295,11 @@ let activeCat = "Cajas";
 let searchTerm = "";
 
 // ---- Conexión Drive (Apps Script) ----
-let WEBAPP_URL = "";            // se carga de localStorage de la PC
+// URL de conexión por defecto (embebida): así la app se conecta sola en cualquier
+// computadora, sin tener que pegarla a mano. Si una PC ya tiene una URL configurada
+// manualmente, se respeta esa.
+const URL_POR_DEFECTO = "https://script.google.com/macros/s/AKfycbz8LENZLKVsCrPRBi1yzOjzJqfqJPGNt7h6ZcRtamBEOR6OKK6lU36maZh4DBypgJ7i/exec";
+let WEBAPP_URL = "";            // se resuelve en loadUrl()
 let saveTimer = null;
 let lastSavedJSON = "";
 let readyToSave = false;   // candado: no guardar hasta cargar bien desde Drive
@@ -308,9 +312,11 @@ function setStatus(kind,txt){
   e.textContent=({idle:'● ',ok:'✓ ',saving:'⟳ ',dirty:'● ',err:'⚠ '}[kind]||'')+txt;
 }
 
-// Lee la config de conexión guardada localmente en ESTA computadora
+// Lee la config de conexión. Si la PC tiene una guardada, la usa; si no, usa la embebida.
 function loadUrl(){
-  try{ WEBAPP_URL = localStorage.getItem('stock_webapp_url')||""; }catch(e){ WEBAPP_URL=""; }
+  let guardada="";
+  try{ guardada = localStorage.getItem('stock_webapp_url')||""; }catch(e){ guardada=""; }
+  WEBAPP_URL = guardada || URL_POR_DEFECTO;
   return WEBAPP_URL;
 }
 function saveUrl(u){
