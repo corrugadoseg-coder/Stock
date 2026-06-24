@@ -187,7 +187,7 @@
     <span><i class="chip" style="background:var(--anasco)"></i> Añasco</span>
     <span><i class="chip" style="background:var(--dickman)"></i> Dickman</span>
     <span><i class="chip" style="background:#fffbe9"></i> Inventario físico (editable)</span>
-    <span>SALDO = Inicial + Entran − Salen &nbsp;|&nbsp; FINAL = Saldo Añasco + Saldo Dickman</span>
+    <span>SALDO = Entran − Salen (el inicial ya está incluido en Entran) &nbsp;|&nbsp; FINAL = Saldo Añasco + Saldo Dickman</span>
   </div>
   <div class="panel" id="panel"></div>
 </div>
@@ -421,7 +421,9 @@ function mvList(v){
 }
 
 function calcItem(it){
-  const aSaldo = num(it.inicial)+mvSum(it.a_entran)-mvSum(it.a_salen);
+  // El stock inicial YA está incluido dentro de "Entran" (como en la planilla original).
+  // Por eso el saldo es Entran − Salen, sin sumar el inicial aparte.
+  const aSaldo = mvSum(it.a_entran)-mvSum(it.a_salen);
   const dSaldo = mvSum(it.d_entran)-mvSum(it.d_salen);
   const final = aSaldo + dSaldo;
   const invSet = it.inv!==null && it.inv!=='' && it.inv!==undefined;
@@ -649,8 +651,11 @@ document.getElementById('mmConfirm').onclick=async()=>{
   for(const c of CATS){
     nm[c]=(prev[c]||[]).map(it=>{
       const r=calcItem(it);
+      // El saldo final del mes anterior es el stock de arranque del nuevo mes.
+      // Como el inicial vive dentro de "Entran", lo ponemos ahí (en Añasco),
+      // y lo dejamos también en "inicial" como dato informativo.
       return {desc:it.desc,precio:it.precio,inicial:r.final,
-        a_salen:0,a_entran:0,d_salen:0,d_entran:0,inv:null};
+        a_salen:0,a_entran:r.final,d_salen:0,d_entran:0,inv:null};
     });
   }
   DB.months[name]=nm; DB.order.push(name); DB.current=name;
