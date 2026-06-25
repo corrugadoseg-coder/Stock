@@ -104,6 +104,8 @@
   tfoot td.desc{background:#eef1f5}
   .val-money{color:var(--accent2);font-weight:600}
   .row-actions{position:sticky;right:0;background:var(--panel)}
+  .rep-tab{background:none;border:none;padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+  .rep-tab.active{color:var(--accent2);border-bottom-color:var(--accent2)}
   /* Resaltado de la fila donde se está operando */
   tbody tr.fila-activa td{background:#fff7d6!important;box-shadow:inset 0 0 0 9999px rgba(255,224,102,.18)}
   tbody tr.fila-activa td.codigo,tbody tr.fila-activa td.desc{background:#fff7d6!important}
@@ -294,14 +296,22 @@
   </div>
 </div>
 
-<!-- Modal Informes (historial de diferencias) -->
+<!-- Modal Informes -->
 <div class="modal-bg" id="modalReports">
   <div class="modal" style="max-width:920px;width:96%">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <h3 style="margin:0">📊 Historial de diferencias de inventario</h3>
+      <h3 style="margin:0">📊 Informes</h3>
       <button onclick="closeModal('modalReports')" style="background:none;border:none;cursor:pointer;font-size:18px;color:#8a93a0">✕</button>
     </div>
-    <p style="margin:6px 0 10px;color:var(--muted);font-size:12px">Diferencia = Inventario físico − Saldo calculado. Faltante (negativo) o sobrante (positivo).</p>
+    <div class="rep-tabs" style="display:flex;gap:6px;margin:10px 0 12px;border-bottom:2px solid var(--line)">
+      <button class="rep-tab active" id="tabDif" onclick="cambiarTabInforme('dif')">Diferencias de inventario</button>
+      <button class="rep-tab" id="tabSal" onclick="cambiarTabInforme('sal')">Artículos con mayor salida</button>
+      <button class="rep-tab" id="tabFrec" onclick="cambiarTabInforme('frec')">Diferencias frecuentes</button>
+    </div>
+
+    <!-- Sección 1: Diferencias -->
+    <div id="secDif">
+    <p style="margin:0 0 10px;color:var(--muted);font-size:12px">Diferencia = Inventario físico − Saldo calculado. Faltante (negativo) o sobrante (positivo).</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
       <div><label class="hint" style="display:block;margin-bottom:3px">Mes</label><select id="rfMes"></select></div>
       <div><label class="hint" style="display:block;margin-bottom:3px">Categoría</label><select id="rfCat"></select></div>
@@ -320,6 +330,51 @@
         <button class="ghost" id="rfImprimir">🖨 Imprimir / PDF</button>
         <button onclick="closeModal('modalReports')">Cerrar</button>
       </div>
+    </div>
+    </div>
+
+    <!-- Sección 2: Mayor salida -->
+    <div id="secSal" style="display:none">
+    <p style="margin:0 0 10px;color:var(--muted);font-size:12px">Ranking de artículos por cantidad que SALIÓ en el período elegido (Añasco + Dickman). Útil para saber qué reponer y producir más.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+      <div><label class="hint" style="display:block;margin-bottom:3px">Desde</label><select id="msDesde"></select></div>
+      <div><label class="hint" style="display:block;margin-bottom:3px">Hasta</label><select id="msHasta"></select></div>
+      <div><label class="hint" style="display:block;margin-bottom:3px">Categoría</label><select id="msCat"></select></div>
+      <div><label class="hint" style="display:block;margin-bottom:3px">Ordenar por</label><select id="msOrden">
+        <option value="unidades">Más unidades</option><option value="plata">Más $</option></select></div>
+    </div>
+    <div id="msResumen" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px"></div>
+    <div id="msTabla" style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px"></div>
+    <div class="actions" style="justify-content:space-between">
+      <span class="hint" id="msCount"></span>
+      <div style="display:flex;gap:8px">
+        <button class="ghost" id="msExportCsv">⬇ Excel (CSV)</button>
+        <button class="ghost" id="msImprimir">🖨 Imprimir / PDF</button>
+        <button onclick="closeModal('modalReports')">Cerrar</button>
+      </div>
+    </div>
+    </div>
+
+    <!-- Sección 3: Diferencias frecuentes -->
+    <div id="secFrec" style="display:none">
+    <p style="margin:0 0 10px;color:var(--muted);font-size:12px">Ranking de los artículos que más seguido dieron diferencia en el período. Sirve para detectar cajas problemáticas (mal conteo, errores de carga, pérdidas).</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+      <div><label class="hint" style="display:block;margin-bottom:3px">Desde</label><select id="fqDesde"></select></div>
+      <div><label class="hint" style="display:block;margin-bottom:3px">Hasta</label><select id="fqHasta"></select></div>
+      <div><label class="hint" style="display:block;margin-bottom:3px">Categoría</label><select id="fqCat"></select></div>
+      <div><label class="hint" style="display:block;margin-bottom:3px">Ordenar por</label><select id="fqOrden">
+        <option value="veces">Más veces con diferencia</option><option value="acum">Mayor diferencia acumulada</option></select></div>
+    </div>
+    <div id="fqResumen" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px"></div>
+    <div id="fqTabla" style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px"></div>
+    <div class="actions" style="justify-content:space-between">
+      <span class="hint" id="fqCount"></span>
+      <div style="display:flex;gap:8px">
+        <button class="ghost" id="fqExportCsv">⬇ Excel (CSV)</button>
+        <button class="ghost" id="fqImprimir">🖨 Imprimir / PDF</button>
+        <button onclick="closeModal('modalReports')">Cerrar</button>
+      </div>
+    </div>
     </div>
   </div>
 </div>
@@ -869,16 +924,17 @@ function renderIncHistory(){
 
 // ---- Enviar a jefe: genera los 2 PDF y abre el correo ----
 document.getElementById('btnMail').onclick=()=>{
-  // 1) generar los dos PDF (se abren en pestañas para guardarlos)
+  // 1) generar los tres PDF (se abren en pestañas para guardarlos)
   generarPdfStock();
   generarPdfMovimientos();
+  generarPdfMayorSalida();
   // 2) abrir el correo con destinatario y asunto ya cargados
   const dest='eduardo.gutman@yahoo.com';
   const asunto='STOCK';
-  const cuerpo=`Hola Eduardo,\n\nTe envío el stock de ${DB.current}.\nAdjunto dos archivos:\n- Stock valorizado (totales por artículo y por categoría)\n- Movimientos del mes (entradas y salidas detalladas)\n\nSaludos.`;
+  const cuerpo=`Hola Eduardo,\n\nTe envío el stock de ${DB.current}.\nAdjunto tres archivos:\n- Stock valorizado (totales por artículo y por categoría)\n- Movimientos del mes (entradas y salidas detalladas)\n- Artículos con mayor salida del mes\n\nSaludos.`;
   const link='mailto:'+encodeURIComponent(dest)+'?subject='+encodeURIComponent(asunto)+'&body='+encodeURIComponent(cuerpo);
-  setTimeout(()=>{ window.location.href=link; }, 600);
-  toast('Se abrieron los 2 PDF y el correo. Guardá los PDF y adjuntalos al mail.');
+  setTimeout(()=>{ window.location.href=link; }, 900);
+  toast('Se abrieron los 3 PDF y el correo. Guardá los PDF y adjuntalos al mail.');
 };
 
 // Planilla de conteo físico (resumida, imprimible)
@@ -913,15 +969,35 @@ function generarPdfStock(){
   tr.cat td{background:#dfe6ee;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
   tr.subt td{background:#f2f5f9;font-weight:700}
   tfoot td{background:#0f3d63;color:#fff;font-weight:700;font-size:12px}
-  .noprint{margin:14px 0;text-align:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;background:#2f5d8a;color:#fff;border:none;border-radius:6px;cursor:pointer}
-  @media print{.noprint{display:none}}</style></head><body>
+  .noprint{margin:14px 0;text-align:center;display:flex;gap:10px;justify-content:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  .btn-imp{background:#2f5d8a}.btn-save{background:#1a7f4b}.btn-close{background:#888}
+  @media print{.noprint{display:none}}</style>
+  <`+`script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/scr`+`ipt>
+  </head><body>
+  <div id="doc">
   <div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
     <img src="${LOGO_PRINT}" style="height:50px"><div><h1>Stock Valorizado — ${DB.current}</h1>
     <div class="meta">Depósitos: Añasco / Dickman · Emitido ${fecha}</div></div></div>
   <table><thead><tr><th>Código</th><th style="text-align:left">Artículo</th><th>Unidades</th><th>Valor ($)</th></tr></thead>
   <tbody>${body}</tbody>
   <tfoot><tr><td colspan="2" style="text-align:right">TOTAL GENERAL</td><td class="n">${fmt(totGenU)}</td><td class="n">${money(totGenV)}</td></tr></tfoot></table>
-  <div class="noprint"><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div></body></html>`;
+  </div>
+  <div class="noprint">
+    <button class="btn-imp" onclick="window.print()">🖨 Imprimir</button>
+    <button class="btn-save" onclick="descargarPDF()">⬇ Guardar PDF</button>
+    <button class="btn-close" onclick="window.close()">✕ Cerrar</button>
+  </div>
+  <`+`script>
+    function descargarPDF(){
+      var btns=document.querySelector('.noprint'); btns.style.display='none';
+      html2pdf().set({margin:8,filename:'Stock valorizado ${DB.current}.pdf',
+        image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2},
+        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}})
+        .from(document.getElementById('doc')).save()
+        .then(function(){ btns.style.display='flex'; });
+    }
+  <\/scr`+`ipt>
+  </body></html>`;
   const w=window.open('','_blank');
   if(!w){ toast('Permití las ventanas emergentes'); return; }
   w.document.write(html); w.document.close();
@@ -966,14 +1042,99 @@ function generarPdfMovimientos(){
   td.mv{text-align:right;width:20%}td.mv .dg{color:#666;font-weight:400;font-size:9.5px}
   td.tot{font-weight:700;background:#eef2f7;text-align:right;width:11%}
   tr.cat td{background:#dfe6ee;font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
-  .noprint{margin:14px 0;text-align:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;background:#2f5d8a;color:#fff;border:none;border-radius:6px;cursor:pointer}
-  @media print{.noprint{display:none}}</style></head><body>
+  .noprint{margin:14px 0;text-align:center;display:flex;gap:10px;justify-content:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  .btn-imp{background:#2f5d8a}.btn-save{background:#1a7f4b}.btn-close{background:#888}
+  @media print{.noprint{display:none}}</style>
+  <`+`script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/scr`+`ipt>
+  </head><body>
+  <div id="doc">
   <div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
     <img src="${LOGO_PRINT}" style="height:50px"><div><h1>Movimientos del mes — ${DB.current}</h1>
     <div class="meta">Entradas y salidas (Añasco + Dickman) con desglose · Emitido ${fecha}</div></div></div>
   <table><thead><tr><th>Código</th><th style="text-align:left">Artículo</th><th>Inicial</th><th>Entradas</th><th>Salidas</th><th>Final</th></tr></thead>
   <tbody>${body}</tbody></table>
-  <div class="noprint"><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div></body></html>`;
+  </div>
+  <div class="noprint">
+    <button class="btn-imp" onclick="window.print()">🖨 Imprimir</button>
+    <button class="btn-save" onclick="descargarPDF()">⬇ Guardar PDF</button>
+    <button class="btn-close" onclick="window.close()">✕ Cerrar</button>
+  </div>
+  <`+`script>
+    function descargarPDF(){
+      var btns=document.querySelector('.noprint'); btns.style.display='none';
+      html2pdf().set({margin:8,filename:'Movimientos ${DB.current}.pdf',
+        image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2},
+        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}})
+        .from(document.getElementById('doc')).save()
+        .then(function(){ btns.style.display='flex'; });
+    }
+  <\/scr`+`ipt>
+  </body></html>`;
+  const w=window.open('','_blank');
+  if(!w){ toast('Permití las ventanas emergentes'); return; }
+  w.document.write(html); w.document.close();
+}
+
+// ---- PDF 3: Mayor salida del MES ACTUAL (para el jefe) ----
+function generarPdfMayorSalida(){
+  const m=DB.months[DB.current]||{};
+  const fecha=new Date().toLocaleDateString('es-AR');
+  // acumular salidas del mes actual (ambos depósitos), ordenar por unidades
+  const lista=[];
+  for(const cat of CATS){
+    (m[cat]||[]).forEach(it=>{
+      const salen=mvSum(it.a_salen)+mvSum(it.d_salen);
+      if(salen<=0) return;
+      lista.push({desc:it.desc,codigo:it.codigo||'',cat,unidades:salen,plata:salen*num(it.precio)});
+    });
+  }
+  lista.sort((a,b)=>b.unidades-a.unidades);
+  const totU=lista.reduce((a,d)=>a+d.unidades,0);
+  const totV=lista.reduce((a,d)=>a+d.plata,0);
+  let rows='';
+  lista.forEach((d,k)=>{
+    const pu=totU?(d.unidades/totU*100):0, pv=totV?(d.plata/totV*100):0;
+    rows+=`<tr><td class="n">${k+1}</td><td class="cod">${escHtml(d.codigo)}</td><td class="d">${escHtml(d.desc)}</td><td class="d" style="color:#888">${d.cat}</td><td class="n" style="font-weight:700">${fmt(d.unidades)}</td><td class="n">${pu.toFixed(1)}%</td><td class="n" style="font-weight:700">${money(d.plata)}</td><td class="n">${pv.toFixed(1)}%</td></tr>`;
+  });
+  if(!lista.length) rows=`<tr><td colspan="8" style="text-align:center;padding:18px;color:#888">Sin salidas en ${DB.current}</td></tr>`;
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Mayor salida ${DB.current}</title>
+  <style>@page{size:A4 portrait;margin:10mm}*{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0}
+  h1{font-size:16px;margin:0 0 2px}.meta{font-size:11px;color:#444;margin-bottom:10px}
+  table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:5px 6px;font-size:10.5px}
+  th{background:#0f3d63;color:#fff;text-align:center;font-size:10px}
+  td.cod{text-align:center;width:9%;font-weight:700;color:#0f3d63}
+  td.d{text-align:left}td.n{text-align:right;width:11%}
+  tfoot td{background:#0f3d63;color:#fff;font-weight:700}
+  .noprint{margin:14px 0;text-align:center;display:flex;gap:10px;justify-content:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  .btn-imp{background:#2f5d8a}.btn-save{background:#1a7f4b}.btn-close{background:#888}
+  @media print{.noprint{display:none}}</style>
+  <`+`script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/scr`+`ipt>
+  </head><body>
+  <div id="doc">
+  <div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
+    <img src="${LOGO_PRINT}" style="height:50px"><div><h1>Artículos con mayor salida — ${DB.current}</h1>
+    <div class="meta">Ranking por unidades que salieron (Añasco + Dickman) · Emitido ${fecha}</div></div></div>
+  <table><thead><tr><th>#</th><th>Código</th><th style="text-align:left">Artículo</th><th style="text-align:left">Categoría</th><th>Salidas (u)</th><th>% u</th><th>Salidas ($)</th><th>% $</th></tr></thead>
+  <tbody>${rows}</tbody>
+  <tfoot><tr><td colspan="4" style="text-align:right">TOTALES</td><td class="n">${fmt(totU)}</td><td class="n">100%</td><td class="n">${money(totV)}</td><td class="n">100%</td></tr></tfoot></table>
+  </div>
+  <div class="noprint">
+    <button class="btn-imp" onclick="window.print()">🖨 Imprimir</button>
+    <button class="btn-save" onclick="descargarPDF()">⬇ Guardar PDF</button>
+    <button class="btn-close" onclick="window.close()">✕ Cerrar</button>
+  </div>
+  <`+`script>
+    function descargarPDF(){
+      var btns=document.querySelector('.noprint'); btns.style.display='none';
+      html2pdf().set({margin:8,filename:'Mayor salida ${DB.current}.pdf',
+        image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2},
+        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}})
+        .from(document.getElementById('doc')).save()
+        .then(function(){ btns.style.display='flex'; });
+    }
+  <\/scr`+`ipt>
+  </body></html>`;
   const w=window.open('','_blank');
   if(!w){ toast('Permití las ventanas emergentes'); return; }
   w.document.write(html); w.document.close();
@@ -1019,8 +1180,9 @@ function buildCountSheet(){
     tr.cat td{background:#dfe6ee;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
     .hint{font-size:10px;color:#666;margin-top:10px}
     @media print{.noprint{display:none}}
-    .noprint{margin:14px 0;text-align:center}
-    .noprint button{padding:9px 18px;font-size:14px;font-weight:700;background:#2f5d8a;color:#fff;border:none;border-radius:6px;cursor:pointer}
+    .noprint{margin:14px 0;text-align:center;display:flex;gap:10px;justify-content:center}
+    .noprint button{padding:9px 18px;font-size:14px;font-weight:700;color:#fff;border:none;border-radius:6px;cursor:pointer}
+    .noprint .b-imp{background:#2f5d8a}.noprint .b-close{background:#888}
   </style></head><body>
     <div style="display:flex;align-items:center;gap:14px;border-bottom:2px solid #0f3d63;padding-bottom:8px;margin-bottom:10px">
       <img src="${LOGO_PRINT}" alt="EG Corrugados" style="height:56px;width:auto">
@@ -1042,7 +1204,7 @@ function buildCountSheet(){
       <tbody>${body}</tbody>
     </table>
     <div class="hint">Saldo del sistema según movimientos cargados. La columna "Conteo físico" se completa a mano durante el inventario.</div>
-    <div class="noprint"><button onclick="window.print()">🖨 Imprimir esta planilla</button></div>
+    <div class="noprint"><button class="b-imp" onclick="window.print()">🖨 Imprimir esta planilla</button><button class="b-close" onclick="window.close()">✕ Cerrar</button></div>
   </body></html>`;
   const w=window.open('','_blank');
   if(!w){ toast('Permití las ventanas emergentes para imprimir'); return; }
@@ -1057,16 +1219,23 @@ function recolectarDiferencias(){
   for(const mes of DB.order){
     const m=DB.months[mes]||{};
     for(const cat of CATS){
-      (m[cat]||[]).forEach(it=>{
+      (m[cat]||[]).forEach((it,idx)=>{
         const r=calcItem(it,cat);
         if(r.diff!==null){  // solo los que tienen conteo físico
-          out.push({mes, cat, desc:it.desc, codigo:it.codigo||'', saldo:r.final, contado:num(it.inv),
-            diff:r.diff, valDiff:r.valDiff, precio:num(it.precio)});
+          out.push({mes, cat, idx, desc:it.desc, codigo:it.codigo||'', saldo:r.final, contado:num(it.inv),
+            diff:r.diff, valDiff:r.valDiff, precio:num(it.precio), obs:it.obsDif||''});
         }
       });
     }
   }
   return out;
+}
+// Guardar la observación de una diferencia (por mes/categoría/índice)
+async function updObsDif(mes,cat,idx,val){
+  const it=(DB.months[mes]||{})[cat][idx];
+  if(!it) return;
+  it.obsDif=val;
+  await dbSave();
 }
 
 function poblarFiltrosReportes(){
@@ -1114,9 +1283,10 @@ function renderReportes(){
       <td style="text-align:right;padding:4px 8px">${fmt(d.contado)}</td>
       ${showU?`<td style="text-align:right;padding:4px 8px" class="${cls}">${d.diff>0?'+':''}${fmt(d.diff)}</td>`:''}
       ${showP?`<td style="text-align:right;padding:4px 8px" class="${cls}">${d.valDiff>0?'+':''}${money(d.valDiff)}</td>`:''}
+      <td style="padding:3px 6px"><input value="${escHtml(d.obs||'')}" onchange="updObsDif('${d.mes}','${d.cat}',${d.idx},this.value)" placeholder="✎ observación…" style="width:150px;font-size:11px;border:1px solid #e0e0e0;border-radius:4px;padding:3px 5px"></td>
     </tr>`;
   });
-  const cols = `<th style="text-align:left;padding:5px 8px">Mes</th><th style="padding:5px 8px">Código</th><th style="text-align:left;padding:5px 8px">Artículo</th><th style="text-align:left;padding:5px 8px">Categoría</th><th style="padding:5px 8px">Saldo</th><th style="padding:5px 8px">Contado</th>${showU?'<th style="padding:5px 8px">Difer. (u)</th>':''}${showP?'<th style="padding:5px 8px">Difer. ($)</th>':''}`;
+  const cols = `<th style="text-align:left;padding:5px 8px">Mes</th><th style="padding:5px 8px">Código</th><th style="text-align:left;padding:5px 8px">Artículo</th><th style="text-align:left;padding:5px 8px">Categoría</th><th style="padding:5px 8px">Saldo</th><th style="padding:5px 8px">Contado</th>${showU?'<th style="padding:5px 8px">Difer. (u)</th>':''}${showP?'<th style="padding:5px 8px">Difer. ($)</th>':''}<th style="padding:5px 8px">Observación</th>`;
   document.getElementById('rfTabla').innerHTML = data.length
     ? `<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="position:sticky;top:0;background:#0f3d63;color:#fff">${cols}</tr></thead><tbody>${rows}</tbody></table>`
     : '<div style="padding:20px;text-align:center;color:#888">No hay diferencias para los filtros elegidos. (Las diferencias aparecen cuando cargás conteo físico en la columna amarilla.)</div>';
@@ -1146,9 +1316,9 @@ document.getElementById('btnReports').onclick=()=>{
 document.getElementById('rfExportCsv').onclick=()=>{
   const data=window.__reportData||[];
   if(!data.length){ toast('No hay datos para exportar'); return; }
-  let csv='Mes;Codigo;Articulo;Categoria;Saldo calculado;Contado fisico;Diferencia unidades;Diferencia pesos\n';
+  let csv='Mes;Codigo;Articulo;Categoria;Saldo calculado;Contado fisico;Diferencia unidades;Diferencia pesos;Observacion\n';
   data.forEach(d=>{
-    csv+=`${d.mes};${d.codigo||''};"${d.desc}";${d.cat};${d.saldo};${d.contado};${d.diff};${Math.round(d.valDiff)}\n`;
+    csv+=`${d.mes};${d.codigo||''};"${d.desc}";${d.cat};${d.saldo};${d.contado};${d.diff};${Math.round(d.valDiff)};"${(d.obs||'').replace(/"/g,'""')}"\n`;
   });
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -1164,7 +1334,7 @@ document.getElementById('rfImprimir').onclick=()=>{
   let rows='';
   data.forEach(d=>{
     const color=d.diff<0?'#c0392b':(d.diff>0?'#1a7f4b':'#111');
-    rows+=`<tr><td>${d.mes}</td><td style="font-weight:700">${escHtml(d.codigo||'')}</td><td style="text-align:left">${escHtml(d.desc)}</td><td style="text-align:left">${d.cat}</td><td>${fmt(d.saldo)}</td><td>${fmt(d.contado)}</td><td style="color:${color};font-weight:700">${d.diff>0?'+':''}${fmt(d.diff)}</td><td style="color:${color}">${d.valDiff>0?'+':''}${money(d.valDiff)}</td></tr>`;
+    rows+=`<tr><td>${d.mes}</td><td style="font-weight:700">${escHtml(d.codigo||'')}</td><td style="text-align:left">${escHtml(d.desc)}</td><td style="text-align:left">${d.cat}</td><td>${fmt(d.saldo)}</td><td>${fmt(d.contado)}</td><td style="color:${color};font-weight:700">${d.diff>0?'+':''}${fmt(d.diff)}</td><td style="color:${color}">${d.valDiff>0?'+':''}${money(d.valDiff)}</td><td style="text-align:left">${escHtml(d.obs||'')}</td></tr>`;
   });
   const totU=data.reduce((a,d)=>a+d.diff,0), totV=data.reduce((a,d)=>a+d.valDiff,0);
   const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Diferencias de inventario</title>
@@ -1173,22 +1343,252 @@ document.getElementById('rfImprimir').onclick=()=>{
   table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px 6px;font-size:10.5px;text-align:right}
   th{background:#0f3d63;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   tfoot td{font-weight:700;background:#eef1f5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .noprint{margin:14px 0;text-align:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;background:#2f5d8a;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  .noprint{margin:14px 0;text-align:center;display:flex;gap:10px;justify-content:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  .b-imp{background:#2f5d8a}.b-close{background:#888}
   @media print{.noprint{display:none}}</style></head><body>
   <div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
     <img src="${LOGO_PRINT}" style="height:48px"><div><h1>Historial de Diferencias de Inventario</h1><div class="meta">Emitido ${fecha} · ${data.length} registro(s)</div></div></div>
-  <table><thead><tr><th style="text-align:left">Mes</th><th>Código</th><th style="text-align:left">Artículo</th><th style="text-align:left">Categoría</th><th>Saldo</th><th>Contado</th><th>Difer.(u)</th><th>Difer.($)</th></tr></thead>
+  <table><thead><tr><th style="text-align:left">Mes</th><th>Código</th><th style="text-align:left">Artículo</th><th style="text-align:left">Categoría</th><th>Saldo</th><th>Contado</th><th>Difer.(u)</th><th>Difer.($)</th><th style="text-align:left">Observación</th></tr></thead>
   <tbody>${rows}</tbody>
-  <tfoot><tr><td colspan="6" style="text-align:right">TOTALES</td><td>${totU>0?'+':''}${fmt(totU)}</td><td>${totV>0?'+':''}${money(totV)}</td></tr></tfoot></table>
-  <div class="noprint"><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div></body></html>`;
+  <tfoot><tr><td colspan="6" style="text-align:right">TOTALES</td><td>${totU>0?'+':''}${fmt(totU)}</td><td>${totV>0?'+':''}${money(totV)}</td><td></td></tr></tfoot></table>
+  <div class="noprint"><button class="b-imp" onclick="window.print()">🖨 Imprimir / Guardar PDF</button><button class="b-close" onclick="window.close()">✕ Cerrar</button></div></body></html>`;
+  const w=window.open('','_blank');
+  if(!w){ toast('Permití las ventanas emergentes'); return; }
+  w.document.write(html); w.document.close();
+};
+
+// ===== INFORME: ARTÍCULOS CON MAYOR SALIDA =====
+function cambiarTabInforme(tab){
+  document.getElementById('secDif').style.display = tab==='dif'?'block':'none';
+  document.getElementById('secSal').style.display = tab==='sal'?'block':'none';
+  document.getElementById('secFrec').style.display = tab==='frec'?'block':'none';
+  document.getElementById('tabDif').classList.toggle('active',tab==='dif');
+  document.getElementById('tabSal').classList.toggle('active',tab==='sal');
+  document.getElementById('tabFrec').classList.toggle('active',tab==='frec');
+  if(tab==='sal'){ poblarFiltrosSalida(); renderMayorSalida(); }
+  if(tab==='frec'){ poblarFiltrosFrec(); renderFrecuentes(); }
+}
+function poblarFiltrosSalida(){
+  const desde=document.getElementById('msDesde'), hasta=document.getElementById('msHasta'), cat=document.getElementById('msCat');
+  const ops=DB.order.map(m=>`<option value="${m}">${m}</option>`).join('');
+  // solo repoblar si está vacío, para no pisar la selección del usuario
+  if(!desde.options.length){ desde.innerHTML=ops; desde.value=DB.order[0]; }
+  if(!hasta.options.length){ hasta.innerHTML=ops; hasta.value=DB.order[DB.order.length-1]; }
+  if(!cat.options.length){ cat.innerHTML='<option value="">Todas las categorías</option>'+CATS.map(c=>`<option value="${c}">${c}</option>`).join(''); }
+}
+function calcularSalidas(){
+  const desdeM=document.getElementById('msDesde').value;
+  const hastaM=document.getElementById('msHasta').value;
+  const catF=document.getElementById('msCat').value;
+  const i0=DB.order.indexOf(desdeM), i1=DB.order.indexOf(hastaM);
+  const lo=Math.min(i0,i1), hi=Math.max(i0,i1);
+  const meses=DB.order.slice(lo,hi+1);
+  // acumular salidas por artículo (sumando ambos depósitos y todos los meses del rango)
+  const acc=new Map(); // desc -> {desc,codigo,cat,unidades,plata}
+  for(const mes of meses){
+    for(const c of CATS){
+      if(catF && c!==catF) continue;
+      (DB.months[mes][c]||[]).forEach(it=>{
+        const salen = mvSum(it.a_salen)+mvSum(it.d_salen);
+        if(salen<=0) return;
+        const key=it.desc;
+        if(!acc.has(key)) acc.set(key,{desc:it.desc,codigo:it.codigo||'',cat:c,unidades:0,plata:0});
+        const o=acc.get(key);
+        o.unidades+=salen;
+        o.plata+=salen*num(it.precio);
+      });
+    }
+  }
+  return {lista:[...acc.values()], meses};
+}
+function renderMayorSalida(){
+  const {lista,meses}=calcularSalidas();
+  const orden=document.getElementById('msOrden').value;
+  lista.sort((a,b)=> orden==='plata' ? b.plata-a.plata : b.unidades-a.unidades);
+  const totU=lista.reduce((a,d)=>a+d.unidades,0);
+  const totV=lista.reduce((a,d)=>a+d.plata,0);
+  window.__salidaData={lista,totU,totV,meses};
+  // resumen
+  const res=document.getElementById('msResumen');
+  res.innerHTML=`<div class="card" style="min-width:160px"><div class="lbl">Período</div><div class="val" style="font-size:15px">${meses[0]} → ${meses[meses.length-1]}</div><div class="sub">${meses.length} mes(es)</div></div>
+    <div class="card" style="min-width:140px"><div class="lbl">Total salidas (u)</div><div class="val">${fmt(totU)}</div></div>
+    <div class="card" style="min-width:140px"><div class="lbl">Total salidas ($)</div><div class="val" style="color:var(--accent2)">${money(totV)}</div></div>`;
+  // tabla
+  let rows='';
+  lista.forEach((d,k)=>{
+    const pctU = totU? (d.unidades/totU*100):0;
+    const pctV = totV? (d.plata/totV*100):0;
+    rows+=`<tr>
+      <td style="text-align:center;font-weight:700;color:#888;padding:4px 8px">${k+1}</td>
+      <td style="text-align:center;padding:4px 8px;font-weight:700;color:var(--accent2)">${escHtml(d.codigo)}</td>
+      <td style="text-align:left;padding:4px 8px">${escHtml(d.desc)}</td>
+      <td style="text-align:left;padding:4px 8px;color:#888">${d.cat}</td>
+      <td style="text-align:right;padding:4px 8px;font-weight:700">${fmt(d.unidades)}</td>
+      <td style="text-align:right;padding:4px 8px;color:#666">${pctU.toFixed(1)}%</td>
+      <td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--accent2)">${money(d.plata)}</td>
+      <td style="text-align:right;padding:4px 8px;color:#666">${pctV.toFixed(1)}%</td>
+    </tr>`;
+  });
+  if(!lista.length) rows=`<tr><td colspan="8" style="text-align:center;padding:20px;color:#888">No hay salidas registradas en este período</td></tr>`;
+  document.getElementById('msTabla').innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="position:sticky;top:0;background:#0f3d63;color:#fff">
+      <th style="padding:6px 8px">#</th><th style="padding:6px 8px">Código</th><th style="text-align:left;padding:6px 8px">Artículo</th><th style="text-align:left;padding:6px 8px">Categoría</th>
+      <th style="padding:6px 8px">Salidas (u)</th><th style="padding:6px 8px">% u</th><th style="padding:6px 8px">Salidas ($)</th><th style="padding:6px 8px">% $</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  document.getElementById('msCount').textContent=`${lista.length} artículo(s) con salida`;
+}
+['msDesde','msHasta','msCat','msOrden'].forEach(id=>{
+  document.getElementById(id).onchange=renderMayorSalida;
+});
+// Exportar mayor salida a CSV
+document.getElementById('msExportCsv').onclick=()=>{
+  const d=window.__salidaData; if(!d||!d.lista.length){ toast('No hay datos para exportar'); return; }
+  let csv='Ranking;Codigo;Articulo;Categoria;Salidas unidades;% unidades;Salidas pesos;% pesos\n';
+  d.lista.forEach((x,k)=>{
+    const pu=d.totU?(x.unidades/d.totU*100):0, pv=d.totV?(x.plata/d.totV*100):0;
+    csv+=`${k+1};${x.codigo||''};"${x.desc}";${x.cat};${x.unidades};${pu.toFixed(1)};${Math.round(x.plata)};${pv.toFixed(1)}\n`;
+  });
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='mayor_salida.csv';a.click();
+  toast('Exportado a CSV');
+};
+// Imprimir / PDF mayor salida
+document.getElementById('msImprimir').onclick=()=>{
+  const d=window.__salidaData; if(!d||!d.lista.length){ toast('No hay datos para imprimir'); return; }
+  const fecha=new Date().toLocaleDateString('es-AR');
+  let rows='';
+  d.lista.forEach((x,k)=>{
+    const pu=d.totU?(x.unidades/d.totU*100):0, pv=d.totV?(x.plata/d.totV*100):0;
+    rows+=`<tr><td>${k+1}</td><td style="font-weight:700">${escHtml(x.codigo||'')}</td><td style="text-align:left">${escHtml(x.desc)}</td><td style="text-align:left">${x.cat}</td><td style="font-weight:700">${fmt(x.unidades)}</td><td>${pu.toFixed(1)}%</td><td style="font-weight:700">${money(x.plata)}</td><td>${pv.toFixed(1)}%</td></tr>`;
+  });
+  const per=`${d.meses[0]} → ${d.meses[d.meses.length-1]}`;
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Mayor salida ${per}</title>
+  <style>@page{size:A4 portrait;margin:10mm}body{font-family:Arial;color:#111;margin:0}
+  h1{font-size:15px;margin:0 0 2px}.meta{font-size:11px;color:#444;margin-bottom:10px}
+  table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px 6px;font-size:10.5px;text-align:right}
+  th{background:#0f3d63;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  tfoot td{font-weight:700;background:#eef1f5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .noprint{margin:14px 0;text-align:center;display:flex;gap:10px;justify-content:center}
+  .noprint button{padding:9px 18px;font-size:14px;font-weight:700;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  .b-imp{background:#2f5d8a}.b-close{background:#888}
+  @media print{.noprint{display:none}}</style></head><body>
+  <div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
+    <img src="${LOGO_PRINT}" style="height:48px"><div><h1>Artículos con Mayor Salida</h1><div class="meta">Período: ${per} · Emitido ${fecha}</div></div></div>
+  <table><thead><tr><th>#</th><th>Código</th><th style="text-align:left">Artículo</th><th style="text-align:left">Categoría</th><th>Salidas (u)</th><th>% u</th><th>Salidas ($)</th><th>% $</th></tr></thead>
+  <tbody>${rows}</tbody>
+  <tfoot><tr><td colspan="4" style="text-align:right">TOTALES</td><td>${fmt(d.totU)}</td><td>100%</td><td>${money(d.totV)}</td><td>100%</td></tr></tfoot></table>
+  <div class="noprint"><button class="b-imp" onclick="window.print()">🖨 Imprimir / Guardar PDF</button><button class="b-close" onclick="window.close()">✕ Cerrar</button></div></body></html>`;
+  const w=window.open('','_blank');
+  if(!w){ toast('Permití las ventanas emergentes'); return; }
+  w.document.write(html); w.document.close();
+};
+
+// ===== INFORME: DIFERENCIAS FRECUENTES =====
+function poblarFiltrosFrec(){
+  const desde=document.getElementById('fqDesde'), hasta=document.getElementById('fqHasta'), cat=document.getElementById('fqCat');
+  const ops=DB.order.map(m=>`<option value="${m}">${m}</option>`).join('');
+  if(!desde.options.length){ desde.innerHTML=ops; desde.value=DB.order[0]; }
+  if(!hasta.options.length){ hasta.innerHTML=ops; hasta.value=DB.order[DB.order.length-1]; }
+  if(!cat.options.length){ cat.innerHTML='<option value="">Todas las categorías</option>'+CATS.map(c=>`<option value="${c}">${c}</option>`).join(''); }
+}
+function calcularFrecuentes(){
+  const i0=DB.order.indexOf(document.getElementById('fqDesde').value);
+  const i1=DB.order.indexOf(document.getElementById('fqHasta').value);
+  const catF=document.getElementById('fqCat').value;
+  const lo=Math.min(i0,i1), hi=Math.max(i0,i1);
+  const meses=DB.order.slice(lo,hi+1);
+  // por artículo: cuántas veces tuvo diferencia (≠0), y la diferencia acumulada (en unidades, valor absoluto)
+  const acc=new Map();
+  for(const mes of meses){
+    for(const c of CATS){
+      if(catF && c!==catF) continue;
+      (DB.months[mes][c]||[]).forEach(it=>{
+        const r=calcItem(it,c);
+        if(r.diff===null) return;           // sin conteo físico ese mes
+        if(r.diff===0) return;              // contó pero sin diferencia
+        const key=it.desc;
+        if(!acc.has(key)) acc.set(key,{desc:it.desc,codigo:it.codigo||'',cat:c,veces:0,acumU:0,acumV:0,mesesL:[]});
+        const o=acc.get(key);
+        o.veces++; o.acumU+=Math.abs(r.diff); o.acumV+=Math.abs(r.valDiff); o.mesesL.push(mes);
+      });
+    }
+  }
+  return {lista:[...acc.values()], meses};
+}
+function renderFrecuentes(){
+  const {lista,meses}=calcularFrecuentes();
+  const orden=document.getElementById('fqOrden').value;
+  lista.sort((a,b)=> orden==='acum' ? b.acumU-a.acumU : (b.veces-a.veces || b.acumU-a.acumU));
+  window.__frecData={lista,meses};
+  const res=document.getElementById('fqResumen');
+  const totArt=lista.length;
+  const conRepe=lista.filter(x=>x.veces>=2).length;
+  res.innerHTML=`<div class="card" style="min-width:160px"><div class="lbl">Período</div><div class="val" style="font-size:15px">${meses[0]} → ${meses[meses.length-1]}</div><div class="sub">${meses.length} mes(es)</div></div>
+    <div class="card" style="min-width:150px"><div class="lbl">Artículos con diferencia</div><div class="val">${totArt}</div></div>
+    <div class="card" style="min-width:150px"><div class="lbl">Repiten (2+ veces)</div><div class="val" style="color:var(--neg)">${conRepe}</div><div class="sub">los más problemáticos</div></div>`;
+  let rows='';
+  lista.forEach((d,k)=>{
+    rows+=`<tr>
+      <td style="text-align:center;font-weight:700;color:#888;padding:4px 8px">${k+1}</td>
+      <td style="text-align:center;padding:4px 8px;font-weight:700;color:var(--accent2)">${escHtml(d.codigo)}</td>
+      <td style="text-align:left;padding:4px 8px">${escHtml(d.desc)}</td>
+      <td style="text-align:left;padding:4px 8px;color:#888">${d.cat}</td>
+      <td style="text-align:center;padding:4px 8px;font-weight:700;color:${d.veces>=2?'var(--neg)':'inherit'}">${d.veces}</td>
+      <td style="text-align:right;padding:4px 8px;font-weight:700">${fmt(d.acumU)}</td>
+      <td style="text-align:right;padding:4px 8px;color:var(--accent2)">${money(d.acumV)}</td>
+      <td style="text-align:left;padding:4px 8px;color:#999;font-size:11px">${d.mesesL.join(', ')}</td>
+    </tr>`;
+  });
+  if(!lista.length) rows=`<tr><td colspan="8" style="text-align:center;padding:20px;color:#888">No hay diferencias registradas en este período (necesita conteo físico cargado)</td></tr>`;
+  document.getElementById('fqTabla').innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="position:sticky;top:0;background:#0f3d63;color:#fff">
+      <th style="padding:6px 8px">#</th><th style="padding:6px 8px">Código</th><th style="text-align:left;padding:6px 8px">Artículo</th><th style="text-align:left;padding:6px 8px">Categoría</th>
+      <th style="padding:6px 8px">Veces</th><th style="padding:6px 8px">Difer. acum. (u)</th><th style="padding:6px 8px">Difer. acum. ($)</th><th style="text-align:left;padding:6px 8px">Meses</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  document.getElementById('fqCount').textContent=`${lista.length} artículo(s) con diferencia`;
+}
+['fqDesde','fqHasta','fqCat','fqOrden'].forEach(id=>{
+  document.getElementById(id).onchange=renderFrecuentes;
+});
+document.getElementById('fqExportCsv').onclick=()=>{
+  const d=window.__frecData; if(!d||!d.lista.length){ toast('No hay datos para exportar'); return; }
+  let csv='Ranking;Codigo;Articulo;Categoria;Veces con diferencia;Difer acumulada unidades;Difer acumulada pesos;Meses\n';
+  d.lista.forEach((x,k)=>{
+    csv+=`${k+1};${x.codigo||''};"${x.desc}";${x.cat};${x.veces};${x.acumU};${Math.round(x.acumV)};"${x.mesesL.join(', ')}"\n`;
+  });
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='diferencias_frecuentes.csv';a.click();
+  toast('Exportado a CSV');
+};
+document.getElementById('fqImprimir').onclick=()=>{
+  const d=window.__frecData; if(!d||!d.lista.length){ toast('No hay datos para imprimir'); return; }
+  const fecha=new Date().toLocaleDateString('es-AR');
+  const per=`${d.meses[0]} → ${d.meses[d.meses.length-1]}`;
+  let rows='';
+  d.lista.forEach((x,k)=>{
+    rows+=`<tr><td>${k+1}</td><td style="font-weight:700">${escHtml(x.codigo||'')}</td><td style="text-align:left">${escHtml(x.desc)}</td><td style="text-align:left">${x.cat}</td><td style="font-weight:700;color:${x.veces>=2?'#c0392b':'#111'}">${x.veces}</td><td style="font-weight:700">${fmt(x.acumU)}</td><td>${money(x.acumV)}</td><td style="text-align:left;font-size:9.5px">${x.mesesL.join(', ')}</td></tr>`;
+  });
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Diferencias frecuentes ${per}</title>
+  <style>@page{size:A4 portrait;margin:10mm}body{font-family:Arial;color:#111;margin:0}
+  h1{font-size:15px;margin:0 0 2px}.meta{font-size:11px;color:#444;margin-bottom:10px}
+  table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px 6px;font-size:10.5px;text-align:right}
+  th{background:#0f3d63;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .noprint{margin:14px 0;text-align:center;display:flex;gap:10px;justify-content:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  .b-imp{background:#2f5d8a}.b-close{background:#888}
+  @media print{.noprint{display:none}}</style></head><body>
+  <div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
+    <img src="${LOGO_PRINT}" style="height:48px"><div><h1>Diferencias Frecuentes de Inventario</h1><div class="meta">Período: ${per} · Emitido ${fecha}</div></div></div>
+  <table><thead><tr><th>#</th><th>Código</th><th style="text-align:left">Artículo</th><th style="text-align:left">Categoría</th><th>Veces</th><th>Difer.acum.(u)</th><th>Difer.acum.($)</th><th style="text-align:left">Meses</th></tr></thead>
+  <tbody>${rows}</tbody></table>
+  <div class="noprint"><button class="b-imp" onclick="window.print()">🖨 Imprimir / Guardar PDF</button><button class="b-close" onclick="window.close()">✕ Cerrar</button></div></body></html>`;
   const w=window.open('','_blank');
   if(!w){ toast('Permití las ventanas emergentes'); return; }
   w.document.write(html); w.document.close();
 };
 
 
-
-// Export / Import
 document.getElementById('btnExport').onclick=()=>{
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);

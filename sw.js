@@ -1,6 +1,6 @@
 // Service worker — Stock Permanente PWA
 // Cambiá el número de versión cuando subas una versión nueva de la app
-const CACHE = 'stock-v17';
+const CACHE = 'stock-v22';
 const ASSETS = [
   './',
   './index.html',
