@@ -175,12 +175,13 @@
     <span id="syncStatus" class="sync sync-idle">● Sin conexión</span>
     <button class="ghost small" id="btnInstall" style="display:none">⤓ Instalar app</button>
     <button class="ghost small" id="btnSaveNow">💾 Guardar ahora</button>
-    <button class="ghost small" id="btnTestWrite">🧪 Probar guardado</button>
     <button class="ghost small" id="btnConfig">⚙ Conexión</button>
     <button class="ghost small" id="btnExport">⬇ Respaldo</button>
     <button class="ghost small" id="btnImport">⬆ Importar</button>
     <input type="file" id="fileImport" accept="application/json" style="display:none">
-    <button id="btnPrint">🖨 Informe</button>
+    <button id="btnPdfStock">📄 PDF Stock valorizado</button>
+    <button id="btnPdfMov">📄 PDF Movimientos</button>
+    <button id="btnMail">📧 Enviar a jefe</button>
     <button id="btnCount">📋 Planilla de conteo</button>
     <button id="btnReports">📊 Informes</button>
   </div>
@@ -866,23 +867,118 @@ function renderIncHistory(){
     `· ${a.fecha} — ${a.pct}% en ${a.cats.join(', ')} (${a.afectados} art., mes ${a.mes})`).join('<br>');
 }
 
-// Print
-document.getElementById('btnPrint').onclick=()=>{ buildPrint(); window.print(); };
-function buildPrint(){
-  const m=DB.months[DB.current]||{};
-  const ph=document.getElementById('printHeader');
-  let totVal=0; for(const c of CATS)(m[c]||[]).forEach(it=>totVal+=calcItem(it,c).valFinal);
-  ph.innerHTML=`<div style="display:flex;align-items:center;gap:14px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
-      <img src="${LOGO_PRINT}" alt="EG Corrugados" style="height:54px;width:auto">
-      <div>
-        <h2 style="margin:0">Informe de Stock — ${DB.current}</h2>
-        <div class="meta" style="margin:0">Depósitos: Añasco / Dickman · Emitido ${new Date().toLocaleDateString('es-AR')} · Valor total: <b>${money(totVal)}</b></div>
-      </div>
-    </div>`;
-}
+// ---- Enviar a jefe: genera los 2 PDF y abre el correo ----
+document.getElementById('btnMail').onclick=()=>{
+  // 1) generar los dos PDF (se abren en pestañas para guardarlos)
+  generarPdfStock();
+  generarPdfMovimientos();
+  // 2) abrir el correo con destinatario y asunto ya cargados
+  const dest='eduardo.gutman@yahoo.com';
+  const asunto='STOCK';
+  const cuerpo=`Hola Eduardo,\n\nTe envío el stock de ${DB.current}.\nAdjunto dos archivos:\n- Stock valorizado (totales por artículo y por categoría)\n- Movimientos del mes (entradas y salidas detalladas)\n\nSaludos.`;
+  const link='mailto:'+encodeURIComponent(dest)+'?subject='+encodeURIComponent(asunto)+'&body='+encodeURIComponent(cuerpo);
+  setTimeout(()=>{ window.location.href=link; }, 600);
+  toast('Se abrieron los 2 PDF y el correo. Guardá los PDF y adjuntalos al mail.');
+};
 
 // Planilla de conteo físico (resumida, imprimible)
 document.getElementById('btnCount').onclick=()=>{ buildCountSheet(); };
+
+// ---- PDF 1: Stock valorizado (para el jefe) ----
+document.getElementById('btnPdfStock').onclick=()=>generarPdfStock();
+function generarPdfStock(){
+  const m=DB.months[DB.current]||{};
+  const fecha=new Date().toLocaleDateString('es-AR');
+  let body='', totGenU=0, totGenV=0;
+  for(const cat of CATS){
+    const items=m[cat]||[];
+    if(!items.length) continue;
+    let catU=0, catV=0, filas='';
+    items.forEach(it=>{
+      const c=calcItem(it,cat);
+      catU+=c.final; catV+=c.valFinal;
+      filas+=`<tr><td class="cod">${escHtml(it.codigo||'')}</td><td class="d">${escHtml(it.desc)}</td><td class="n">${fmt(c.final)}</td><td class="n">${money(c.valFinal)}</td></tr>`;
+    });
+    totGenU+=catU; totGenV+=catV;
+    body+=`<tr class="cat"><td colspan="4">${cat}</td></tr>${filas}<tr class="subt"><td colspan="2">Total ${cat}</td><td class="n">${fmt(catU)}</td><td class="n">${money(catV)}</td></tr>`;
+  }
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Stock valorizado — ${DB.current}</title>
+  <style>@page{size:A4 portrait;margin:11mm}*{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0}
+  h1{font-size:16px;margin:0 0 2px}.meta{font-size:11px;color:#444;margin-bottom:10px}
+  table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:5px 7px;font-size:11px}
+  th{background:#0f3d63;color:#fff;text-align:center;font-size:10.5px}
+  td.cod{text-align:center;width:10%;font-weight:700;color:#0f3d63}
+  td.d{text-align:left;width:48%}td.n{text-align:right;width:21%}
+  tr.cat td{background:#dfe6ee;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+  tr.subt td{background:#f2f5f9;font-weight:700}
+  tfoot td{background:#0f3d63;color:#fff;font-weight:700;font-size:12px}
+  .noprint{margin:14px 0;text-align:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;background:#2f5d8a;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  @media print{.noprint{display:none}}</style></head><body>
+  <div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
+    <img src="${LOGO_PRINT}" style="height:50px"><div><h1>Stock Valorizado — ${DB.current}</h1>
+    <div class="meta">Depósitos: Añasco / Dickman · Emitido ${fecha}</div></div></div>
+  <table><thead><tr><th>Código</th><th style="text-align:left">Artículo</th><th>Unidades</th><th>Valor ($)</th></tr></thead>
+  <tbody>${body}</tbody>
+  <tfoot><tr><td colspan="2" style="text-align:right">TOTAL GENERAL</td><td class="n">${fmt(totGenU)}</td><td class="n">${money(totGenV)}</td></tr></tfoot></table>
+  <div class="noprint"><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div></body></html>`;
+  const w=window.open('','_blank');
+  if(!w){ toast('Permití las ventanas emergentes'); return; }
+  w.document.write(html); w.document.close();
+}
+
+// ---- PDF 2: Movimientos detallados (para el jefe) ----
+document.getElementById('btnPdfMov').onclick=()=>generarPdfMovimientos();
+function generarPdfMovimientos(){
+  const m=DB.months[DB.current]||{};
+  const fecha=new Date().toLocaleDateString('es-AR');
+  let body='';
+  for(const cat of CATS){
+    const items=m[cat]||[];
+    if(!items.length) continue;
+    body+=`<tr class="cat"><td colspan="6">${cat}</td></tr>`;
+    items.forEach(it=>{
+      const c=calcItem(it,cat);
+      const salenList=[...mvList(it.a_salen),...mvList(it.d_salen)];
+      const entranList=[...mvList(it.a_entran),...mvList(it.d_entran)];
+      const salenTxt = salenList.length? salenList.map(x=>fmt(x)).join(' + ') : '0';
+      const entranTxt = entranList.length? entranList.map(x=>fmt(x)).join(' + ') : '0';
+      const totSalen = salenList.reduce((a,b)=>a+b,0);
+      const totEntran = entranList.reduce((a,b)=>a+b,0);
+      body+=`<tr>
+        <td class="cod">${escHtml(it.codigo||'')}</td>
+        <td class="d">${escHtml(it.desc)}</td>
+        <td class="n">${fmt(it.inicial)}</td>
+        <td class="mv"><b>${fmt(totEntran)}</b>${entranList.length>1?` <span class="dg">(${entranTxt})</span>`:''}</td>
+        <td class="mv"><b>${fmt(totSalen)}</b>${salenList.length>1?` <span class="dg">(${salenTxt})</span>`:''}</td>
+        <td class="tot">${fmt(c.final)}</td>
+      </tr>`;
+    });
+  }
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Movimientos — ${DB.current}</title>
+  <style>@page{size:A4 portrait;margin:10mm}*{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0}
+  h1{font-size:16px;margin:0 0 2px}.meta{font-size:11px;color:#444;margin-bottom:10px}
+  table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:5px 6px;font-size:10.5px;vertical-align:top}
+  th{background:#0f3d63;color:#fff;text-align:center;font-size:10px}
+  td.cod{text-align:center;width:8%;font-weight:700;color:#0f3d63}
+  td.d{text-align:left;width:30%}td.n{text-align:right;width:11%}
+  td.mv{text-align:right;width:20%}td.mv .dg{color:#666;font-weight:400;font-size:9.5px}
+  td.tot{font-weight:700;background:#eef2f7;text-align:right;width:11%}
+  tr.cat td{background:#dfe6ee;font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
+  .noprint{margin:14px 0;text-align:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;background:#2f5d8a;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  @media print{.noprint{display:none}}</style></head><body>
+  <div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
+    <img src="${LOGO_PRINT}" style="height:50px"><div><h1>Movimientos del mes — ${DB.current}</h1>
+    <div class="meta">Entradas y salidas (Añasco + Dickman) con desglose · Emitido ${fecha}</div></div></div>
+  <table><thead><tr><th>Código</th><th style="text-align:left">Artículo</th><th>Inicial</th><th>Entradas</th><th>Salidas</th><th>Final</th></tr></thead>
+  <tbody>${body}</tbody></table>
+  <div class="noprint"><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div></body></html>`;
+  const w=window.open('','_blank');
+  if(!w){ toast('Permití las ventanas emergentes'); return; }
+  w.document.write(html); w.document.close();
+}
+
 function buildCountSheet(){
   const m=DB.months[DB.current]||{};
   const fecha=new Date().toLocaleDateString('es-AR');
@@ -1147,7 +1243,6 @@ document.getElementById('btnSaveNow').onclick=async()=>{
   const ok=await pushToDrive();
   toast(ok?'Guardado en Drive':'No se pudo guardar');
 };
-document.getElementById('btnTestWrite').onclick=()=>testWrite();
 
 // ---- PWA: registro del service worker e instalación ----
 if ('serviceWorker' in navigator) {
