@@ -39,10 +39,12 @@
   .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
   .tab{padding:8px 14px;background:#e8ebf0;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer;font-weight:600;color:var(--muted)}
   .tab.active{background:var(--panel);color:var(--accent2);box-shadow:0 -2px 0 var(--accent) inset}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:0 10px 10px 10px;overflow:auto}
-  table{border-collapse:collapse;width:100%;min-width:1050px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:0 10px 10px 10px;overflow:auto;max-height:calc(100vh - 230px)}
+  table{border-collapse:separate;border-spacing:0;width:100%;min-width:1050px}
   th,td{padding:5px 7px;border:1px solid var(--line);text-align:right;white-space:nowrap}
-  th{background:var(--head);color:#fff;position:sticky;top:0;font-size:11px;font-weight:600}
+  th{background:var(--head);color:#fff;position:sticky;top:0;font-size:11px;font-weight:600;z-index:8}
+  /* segunda fila del encabezado (Salen/Entran/Saldo) pegada debajo de la primera */
+  thead tr:nth-child(2) th{top:27px;z-index:8}
   th.grp{text-align:center;font-size:12px}
   td.codigo,th.codigo{text-align:center;width:64px;min-width:64px;position:sticky;left:0;background:var(--panel);z-index:6;font-weight:700;color:var(--accent2)}
   th.codigo{background:var(--head);color:#fff;z-index:12}
@@ -99,6 +101,14 @@
   tfoot td.desc{background:#eef1f5}
   .val-money{color:var(--accent2);font-weight:600}
   .row-actions{position:sticky;right:0;background:var(--panel)}
+  /* Resaltado de la fila donde se está operando */
+  tbody tr.fila-activa td{background:#fff7d6!important;box-shadow:inset 0 0 0 9999px rgba(255,224,102,.18)}
+  tbody tr.fila-activa td.codigo,tbody tr.fila-activa td.desc{background:#fff7d6!important}
+  /* Columna de notas */
+  td.nota-cell input.nota-in{width:150px;text-align:left;font-size:11px;color:#5a4a00;background:#fffdf2;border-color:#efe6c0}
+  td.nota-cell.con-nota{background:#fff7d6}
+  td.nota-cell.con-nota input.nota-in{background:#fff7d6;font-weight:600}
+  th.nota-col,td.nota-col{min-width:160px}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:8px;opacity:0;transition:.3s;z-index:60;font-weight:600}
   .toast.show{opacity:.96}
   .legend{font-size:11px;color:var(--muted);margin:8px 2px;display:flex;gap:16px;flex-wrap:wrap}
@@ -505,7 +515,7 @@ function renderTable(){
   let totIni=0,totAS=0,totAE=0,totASaldo=0,totDS=0,totDE=0,totDSaldo=0,totFinal=0,totVal=0,totValDiff=0;
   let rows='';
   items.forEach((it,i)=>{
-    const c=calcItem(it);
+    const c=calcItem(it,activeCat);
     totIni+=num(it.inicial);totAS+=mvSum(it.a_salen);totAE+=mvSum(it.a_entran);totASaldo+=c.aSaldo;
     totDS+=mvSum(it.d_salen);totDE+=mvSum(it.d_entran);totDSaldo+=c.dSaldo;totFinal+=c.final;totVal+=c.valFinal;
     if(c.diff!==null)totValDiff+=c.valDiff;
@@ -513,7 +523,8 @@ function renderTable(){
     if(hide) return;
     const diffCell = c.diff===null?'<span style="color:#bbb">—</span>'
       : `<span class="${c.diff>0?'pos-diff':(c.diff<0?'neg-diff':'')}">${c.diff>0?'+':''}${fmt(c.diff)}</span>`;
-    rows+=`<tr>
+    const tieneNota = it.nota && it.nota.trim()!=='';
+    rows+=`<tr onclick="marcarFila(this)">
       <td class="codigo"><input class="cod-in" value="${esc(it.codigo||'')}" onchange="upd(${i},'codigo',this.value)" placeholder="—"></td>
       <td class="desc"><input class="desc-in" value="${esc(it.desc)}" onchange="upd(${i},'desc',this.value)"></td>
       <td><span class="price-wrap"><span class="sym">$</span><input class="price" type="number" value="${it.precio}" onchange="upd(${i},'precio',this.value)"></span></td>
@@ -528,6 +539,7 @@ function renderTable(){
       <td><input class="inv" type="number" value="${it.inv===null||it.inv===undefined?'':it.inv}" placeholder="—" onchange="upd(${i},'inv',this.value)"></td>
       <td>${diffCell}</td>
       <td class="val-money money-cell">${money(c.valFinal)}</td>
+      <td class="nota-cell ${tieneNota?'con-nota':''}"><input class="nota-in" value="${esc(it.nota||'')}" onchange="upd(${i},'nota',this.value)" placeholder="✎ nota…" title="${esc(it.nota||'')}"></td>
       <td class="row-actions no-print"><button class="ghost small danger" onclick="delItem(${i})" title="Eliminar">✕</button></td>
     </tr>`;
   });
@@ -544,6 +556,7 @@ function renderTable(){
         <th rowspan="2">INV.<br>FÍSICO</th>
         <th rowspan="2">DIFER.</th>
         <th rowspan="2">VALOR<br>FINAL</th>
+        <th rowspan="2" class="nota-col">NOTAS</th>
         <th rowspan="2" class="no-print"></th>
       </tr>
       <tr>
@@ -564,6 +577,7 @@ function renderTable(){
         <td></td>
         <td class="${totValDiff<0?'neg-diff':(totValDiff>0?'pos-diff':'')}">${totValDiff!==0?money(totValDiff):''}</td>
         <td class="val-money money-cell">${money(totVal)}</td>
+        <td class="nota-col"></td>
         <td class="no-print"></td>
       </tr>
     </tfoot>
@@ -593,10 +607,17 @@ function esc(s){return (s+'').replace(/"/g,'&quot;');}
 async function upd(i,field,val){
   const it=currentItems()[i];
   if(field==='desc') it.desc=val;
+  else if(field==='codigo') it.codigo=val.trim();
+  else if(field==='nota') it.nota=val;
   else if(field==='inv') it.inv = (val===''?null:num(val));
   else it[field]=num(val);
   await dbSave();
   renderCards(); renderTable();
+}
+// Resalta la fila donde se está operando
+function marcarFila(tr){
+  document.querySelectorAll('#panel tbody tr.fila-activa').forEach(r=>r.classList.remove('fila-activa'));
+  if(tr) tr.classList.add('fila-activa');
 }
 async function delItem(i){
   const it=currentItems()[i];
@@ -613,14 +634,21 @@ function openMv(i, field, cell){
   const pop=document.getElementById('mvPop');
   renderMvPop();
   pop.classList.add('show');
-  // position under the clicked cell
+  // resaltar la fila donde estoy operando
+  const fila = cell.closest('tr');
+  marcarFila(fila);
+  // posicionar el cuadro a la DERECHA de la celda, a la altura del mismo renglón
   const r=cell.getBoundingClientRect();
-  let left=window.scrollX + r.left;
-  let top=window.scrollY + r.bottom + 4;
-  // keep inside viewport
-  const pw=220;
+  const pw=220, ph=pop.offsetHeight||190;
+  let left=window.scrollX + r.right + 8;       // a la derecha de la celda
+  let top =window.scrollY + r.top;             // misma altura que el renglón
+  // si se sale por la derecha, lo pongo a la izquierda de la celda
   if(left+pw > window.scrollX+document.documentElement.clientWidth)
-    left = window.scrollX+document.documentElement.clientWidth - pw - 8;
+    left = window.scrollX + r.left - pw - 8;
+  // si se sale por abajo, lo subo
+  if(top+ph > window.scrollY+document.documentElement.clientHeight)
+    top = window.scrollY+document.documentElement.clientHeight - ph - 10;
+  if(left < window.scrollX+4) left = window.scrollX+4;
   pop.style.left=left+'px';
   pop.style.top=top+'px';
   setTimeout(()=>{const inp=document.getElementById('mvAddInput'); if(inp) inp.focus();},30);
