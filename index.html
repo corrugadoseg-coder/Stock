@@ -78,17 +78,20 @@
   .mv-cell:hover{background:#dceaf7!important}
   .col-dk.mv-cell:hover{background:#f6e3d4!important}
   .mv-caret{font-size:9px;color:#8a93a0;margin-left:3px;vertical-align:middle}
-  #mvPop{position:absolute;z-index:80;background:#fff;border:1px solid #c4ccd6;border-radius:10px;box-shadow:0 8px 28px rgba(15,30,50,.22);padding:12px;width:210px;display:none}
+  #mvPop{position:absolute;z-index:80;background:#fff;border:1px solid #c4ccd6;border-radius:10px;box-shadow:0 8px 28px rgba(15,30,50,.22);padding:10px 12px;max-width:560px;display:none}
   #mvPop.show{display:block}
-  #mvPop h4{margin:0 0 8px;font-size:12px;color:var(--accent2);display:flex;justify-content:space-between;align-items:center}
-  #mvPop .mv-items{max-height:150px;overflow:auto;margin-bottom:8px}
-  #mvPop .mv-item{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px dashed #e3e6ec}
-  #mvPop .mv-item span.q{flex:1;text-align:right;font-variant-numeric:tabular-nums}
-  #mvPop .mv-item button{background:none;border:none;color:#c0392b;cursor:pointer;font-size:13px;padding:0 4px}
-  #mvPop .mv-total{font-weight:700;text-align:right;border-top:2px solid var(--accent2);padding-top:5px;margin-bottom:8px;font-size:13px}
-  #mvPop .mv-add{display:flex;gap:5px}
-  #mvPop .mv-add input{flex:1;width:auto;text-align:right;border:1px solid var(--line);border-radius:6px;padding:5px}
-  #mvPop .mv-add button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-weight:700;cursor:pointer}
+  #mvPop .mv-head{display:flex;align-items:center;gap:12px;margin-bottom:8px;border-bottom:1px solid #eef0f4;padding-bottom:6px}
+  #mvPop .mv-title{font-size:12px;font-weight:700;color:var(--accent2)}
+  #mvPop .mv-total-inline{font-size:12px;color:#444;margin-left:auto}
+  #mvPop .mv-close{background:none;border:none;cursor:pointer;color:#8a93a0;font-size:14px;padding:0 2px}
+  #mvPop .mv-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  #mvPop .mv-chips{display:flex;gap:6px;flex-wrap:wrap;max-width:360px}
+  #mvPop .mv-chip{display:inline-flex;align-items:center;gap:4px;background:#eef4fb;border:1px solid #c4d6ea;border-radius:7px;padding:3px 6px 3px 9px;font-size:13px;font-weight:700;color:var(--accent2);font-variant-numeric:tabular-nums}
+  #mvPop .mv-chip button{background:none;border:none;color:#c0392b;cursor:pointer;font-size:12px;padding:0;line-height:1}
+  #mvPop .mv-empty{color:var(--muted);font-size:12px;padding:4px 2px}
+  #mvPop .mv-add{display:flex;gap:5px;align-items:center}
+  #mvPop .mv-add input{width:90px;text-align:right;border:1px solid var(--line);border-radius:6px;padding:6px}
+  #mvPop .mv-add button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
   #mvPop .mv-empty{color:var(--muted);font-size:11px;text-align:center;padding:6px 0}
   .money-cell .sym{color:#8a93a0;margin-right:1px}
   .price-wrap{display:inline-flex;align-items:center;gap:1px;justify-content:flex-end}
@@ -639,7 +642,7 @@ function openMv(i, field, cell){
   marcarFila(fila);
   // posicionar el cuadro a la DERECHA de la celda, a la altura del mismo renglón
   const r=cell.getBoundingClientRect();
-  const pw=220, ph=pop.offsetHeight||190;
+  const pw=pop.offsetWidth||440, ph=pop.offsetHeight||110;
   let left=window.scrollX + r.right + 8;       // a la derecha de la celda
   let top =window.scrollY + r.top;             // misma altura que el renglón
   // si se sale por la derecha, lo pongo a la izquierda de la celda
@@ -660,17 +663,22 @@ function renderMvPop(){
   const it=currentItems()[mvCtx.i];
   const list=mvList(it[mvCtx.field]);
   const total=list.reduce((a,b)=>a+b,0);
-  let itemsHtml = list.length
-    ? list.map((q,k)=>`<div class="mv-item"><span class="q">${fmt(q)}</span><button onclick="delMv(${k})" title="Quitar">✕</button></div>`).join('')
-    : '<div class="mv-empty">Sin movimientos cargados</div>';
+  let chips = list.length
+    ? list.map((q,k)=>`<div class="mv-chip"><span class="q">${fmt(q)}</span><button onclick="delMv(${k})" title="Quitar">✕</button></div>`).join('')
+    : '<div class="mv-empty">Sin movimientos</div>';
   const pop=document.getElementById('mvPop');
   pop.innerHTML=`
-    <h4>${FIELD_LABEL[mvCtx.field]}<button onclick="closeMv()" style="background:none;border:none;cursor:pointer;color:#8a93a0;font-size:14px">✕</button></h4>
-    <div class="mv-items">${itemsHtml}</div>
-    <div class="mv-total">Total: ${fmt(total)}</div>
-    <div class="mv-add">
-      <input id="mvAddInput" type="number" placeholder="+ cantidad" onkeydown="if(event.key==='Enter')addMv()">
-      <button onclick="addMv()">Sumar</button>
+    <div class="mv-head">
+      <span class="mv-title">${FIELD_LABEL[mvCtx.field]}</span>
+      <span class="mv-total-inline">Total: <b>${fmt(total)}</b></span>
+      <button class="mv-close" onclick="closeMv()" title="Cerrar">✕</button>
+    </div>
+    <div class="mv-row">
+      <div class="mv-chips">${chips}</div>
+      <div class="mv-add">
+        <input id="mvAddInput" type="number" placeholder="+ cantidad" onkeydown="if(event.key==='Enter')addMv()">
+        <button onclick="addMv()">Sumar</button>
+      </div>
     </div>`;
 }
 async function addMv(){
