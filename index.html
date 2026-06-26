@@ -106,6 +106,13 @@
   .row-actions{position:sticky;right:0;background:var(--panel)}
   .rep-tab{background:none;border:none;padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
   .rep-tab.active{color:var(--accent2);border-bottom-color:var(--accent2)}
+  .ultmov-bar{display:flex;gap:18px;flex-wrap:wrap;align-items:center;padding:7px 18px;background:#eef4fb;border-bottom:1px solid #d6e2f0;font-size:12.5px;color:#33475b}
+  .ultmov-bar .um-item{display:inline-flex;align-items:center;gap:6px}
+  .ultmov-bar .um-lbl{font-weight:700;color:var(--accent2)}
+  .ultmov-bar .um-when{font-variant-numeric:tabular-nums;background:#fff;border:1px solid #cfdcec;border-radius:5px;padding:1px 7px;font-weight:600}
+  .ultmov-bar .um-art{color:#6b7280}
+  .ultmov-bar .um-none{color:#9aa6b2;font-style:italic}
+  @media print{.ultmov-bar{display:none}}
   /* Resaltado de la fila donde se está operando */
   tbody tr.fila-activa td{background:#fff7d6!important;box-shadow:inset 0 0 0 9999px rgba(255,224,102,.18)}
   tbody tr.fila-activa td.codigo,tbody tr.fila-activa td.desc{background:#fff7d6!important}
@@ -188,6 +195,8 @@
     <button id="btnReports">📊 Informes</button>
   </div>
 </header>
+
+<div id="ultimoMov" class="ultmov-bar"></div>
 
 <div class="wrap">
   <div class="print-header" id="printHeader"></div>
@@ -658,7 +667,30 @@ function renderCards(){
     <div class="card"><div class="lbl">Diferencia inventario</div><div class="val" style="color:${diffUnits<0?'var(--neg)':(diffUnits>0?'var(--pos)':'var(--ink)')}">${diffUnits>0?'+':''}${fmt(diffUnits)} u.</div><div class="sub" style="color:${diffVal<0?'var(--neg)':'var(--muted)'}">${diffVal!==0?money(diffVal):'sin diferencias'}</div></div>`;
 }
 
-function render(){ renderMonthSelector(); renderTabs(); renderCards(); renderTable(); }
+function render(){ renderMonthSelector(); renderTabs(); renderCards(); renderTable(); renderUltimoMov(); }
+
+// Aviso de último movimiento (entrada y salida) con fecha y hora
+function fmtFechaHora(ts){
+  const d=new Date(ts);
+  const dd=String(d.getDate()).padStart(2,'0');
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0');
+  const mi=String(d.getMinutes()).padStart(2,'0');
+  return `${dd}/${mm} ${hh}:${mi}`;
+}
+function renderUltimoMov(){
+  const bar=document.getElementById('ultimoMov');
+  if(!bar) return;
+  const lm=DB.lastMov||{};
+  const ent=lm.entrada, sal=lm.salida;
+  const itemEnt = ent
+    ? `<span class="um-item"><span class="um-lbl">⬆ Última entrada:</span> <span class="um-when">${fmtFechaHora(ent.ts)}</span> <span class="um-art">${escHtml(ent.desc)} (+${fmt(ent.cant)})</span></span>`
+    : `<span class="um-item"><span class="um-lbl">⬆ Última entrada:</span> <span class="um-none">sin registros</span></span>`;
+  const itemSal = sal
+    ? `<span class="um-item"><span class="um-lbl">⬇ Última salida:</span> <span class="um-when">${fmtFechaHora(sal.ts)}</span> <span class="um-art">${escHtml(sal.desc)} (−${fmt(sal.cant)})</span></span>`
+    : `<span class="um-item"><span class="um-lbl">⬇ Última salida:</span> <span class="um-none">sin registros</span></span>`;
+  bar.innerHTML = itemEnt + itemSal;
+}
 
 function esc(s){return (s+'').replace(/"/g,'&quot;');}
 
@@ -746,8 +778,12 @@ async function addMv(){
   const list=mvList(it[mvCtx.field]);
   list.push(v);
   it[mvCtx.field]=list;
+  // registrar fecha/hora del último movimiento (entrada o salida)
+  if(!DB.lastMov) DB.lastMov={};
+  const tipo = (mvCtx.field==='a_entran'||mvCtx.field==='d_entran') ? 'entrada' : 'salida';
+  DB.lastMov[tipo] = { ts: Date.now(), desc: it.desc, cant: v };
   await dbSave();
-  renderMvPop(); renderCards(); renderTable();
+  renderMvPop(); renderCards(); renderTable(); renderUltimoMov();
   const ni=document.getElementById('mvAddInput'); if(ni){ni.value=''; ni.focus();}
 }
 async function delMv(k){
