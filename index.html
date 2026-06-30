@@ -1718,7 +1718,7 @@ function renderValorizacion(){
     <thead><tr style="position:sticky;top:0;background:#0f3d63;color:#fff">
       <th style="text-align:left;padding:7px 10px">Rubro</th><th style="text-align:right;padding:7px 10px;white-space:nowrap">Unidades</th><th style="text-align:right;padding:7px 10px;white-space:nowrap">Valor ($)</th>
     </tr></thead><tbody>${rows}</tbody>
-    <tfoot><tr style="background:#0f3d63;color:#fff;font-weight:700"><td style="padding:8px 10px">TOTAL VALORIZADO GENERAL</td><td style="text-align:right;padding:8px 10px">${fmt(totU)}</td><td style="text-align:right;padding:8px 10px">${money(totV)}</td></tr></tfoot></table>`;
+    <tfoot><tr><td style="padding:9px 10px;background:#0f3d63;color:#fff;font-weight:700">TOTAL VALORIZADO GENERAL</td><td style="text-align:right;padding:9px 10px;background:#0f3d63;color:#fff;font-weight:700">${fmt(totU)}</td><td style="text-align:right;padding:9px 10px;background:#0f3d63;color:#fff;font-weight:700">${money(totV)}</td></tr></tfoot></table>`;
   document.getElementById('vrCount').textContent=`Mes: ${mes}`;
 }
 document.getElementById('vrMes').onchange=renderValorizacion;
