@@ -307,7 +307,7 @@
 
 <!-- Modal Informes -->
 <div class="modal-bg" id="modalReports">
-  <div class="modal" style="max-width:920px;width:96%">
+  <div class="modal" style="max-width:1000px;width:97%">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <h3 style="margin:0">📊 Informes</h3>
       <button onclick="closeModal('modalReports')" style="background:none;border:none;cursor:pointer;font-size:18px;color:#8a93a0">✕</button>
@@ -316,6 +316,7 @@
       <button class="rep-tab active" id="tabDif" onclick="cambiarTabInforme('dif')">Diferencias de inventario</button>
       <button class="rep-tab" id="tabSal" onclick="cambiarTabInforme('sal')">Artículos con mayor salida</button>
       <button class="rep-tab" id="tabFrec" onclick="cambiarTabInforme('frec')">Diferencias frecuentes</button>
+      <button class="rep-tab" id="tabVal" onclick="cambiarTabInforme('val')">Valorización por rubro</button>
     </div>
 
     <!-- Sección 1: Diferencias -->
@@ -381,6 +382,23 @@
       <div style="display:flex;gap:8px">
         <button class="ghost" id="fqExportCsv">⬇ Excel (CSV)</button>
         <button class="ghost" id="fqImprimir">🖨 Imprimir / PDF</button>
+        <button onclick="closeModal('modalReports')">Cerrar</button>
+      </div>
+    </div>
+    </div>
+
+    <!-- Sección 4: Valorización por rubro -->
+    <div id="secVal" style="display:none">
+    <p style="margin:0 0 10px;color:var(--muted);font-size:12px">Valor del stock agrupado por rubro. El rubro CAJAS se desglosa en sus subcategorías.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+      <div><label class="hint" style="display:block;margin-bottom:3px">Mes</label><select id="vrMes"></select></div>
+    </div>
+    <div id="vrTabla" style="max-height:380px;overflow:auto;border:1px solid var(--line);border-radius:8px"></div>
+    <div class="actions" style="justify-content:space-between">
+      <span class="hint" id="vrCount"></span>
+      <div style="display:flex;gap:8px">
+        <button class="ghost" id="vrExportCsv">⬇ Excel (CSV)</button>
+        <button class="ghost" id="vrImprimir">🖨 Imprimir / PDF</button>
         <button onclick="closeModal('modalReports')">Cerrar</button>
       </div>
     </div>
@@ -1398,11 +1416,14 @@ function cambiarTabInforme(tab){
   document.getElementById('secDif').style.display = tab==='dif'?'block':'none';
   document.getElementById('secSal').style.display = tab==='sal'?'block':'none';
   document.getElementById('secFrec').style.display = tab==='frec'?'block':'none';
+  document.getElementById('secVal').style.display = tab==='val'?'block':'none';
   document.getElementById('tabDif').classList.toggle('active',tab==='dif');
   document.getElementById('tabSal').classList.toggle('active',tab==='sal');
   document.getElementById('tabFrec').classList.toggle('active',tab==='frec');
+  document.getElementById('tabVal').classList.toggle('active',tab==='val');
   if(tab==='sal'){ poblarFiltrosSalida(); renderMayorSalida(); }
   if(tab==='frec'){ poblarFiltrosFrec(); renderFrecuentes(); }
+  if(tab==='val'){ poblarFiltrosVal(); renderValorizacion(); }
 }
 function poblarFiltrosSalida(){
   const desde=document.getElementById('msDesde'), hasta=document.getElementById('msHasta'), cat=document.getElementById('msCat');
@@ -1618,6 +1639,129 @@ document.getElementById('fqImprimir').onclick=()=>{
     <img src="${LOGO_PRINT}" style="height:48px"><div><h1>Diferencias Frecuentes de Inventario</h1><div class="meta">Período: ${per} · Emitido ${fecha}</div></div></div>
   <table><thead><tr><th>#</th><th>Código</th><th style="text-align:left">Artículo</th><th style="text-align:left">Categoría</th><th>Veces</th><th>Difer.acum.(u)</th><th>Difer.acum.($)</th><th style="text-align:left">Meses</th></tr></thead>
   <tbody>${rows}</tbody></table>
+  <div class="noprint"><button class="b-imp" onclick="window.print()">🖨 Imprimir / Guardar PDF</button><button class="b-close" onclick="window.close()">✕ Cerrar</button></div></body></html>`;
+  const w=window.open('','_blank');
+  if(!w){ toast('Permití las ventanas emergentes'); return; }
+  w.document.write(html); w.document.close();
+};
+
+// ===== INFORME: VALORIZACIÓN POR RUBRO =====
+// Clasifica un artículo en su rubro (y subrubro para CAJAS)
+function clasificarRubro(desc, cat){
+  const d=(desc||'').toLowerCase();
+  if(cat==='Cajas') return ['CAJAS','Cajas de aletas simples'];
+  if(cat==='Cajas DT') return ['CAJAS','Cajas DT'];
+  if(cat==='Cajas Usadas') return ['CAJAS','Cajas Usadas'];
+  if(cat==='Estuches y Archivo'){
+    if(d.includes('galeno')) return ['ESTUCHES',null];
+    return ['CAJAS','Cajas de Archivo'];
+  }
+  if(cat==='Rollos y Cintas'){
+    if(d.includes('streetch')||d.includes('streech')) return ['STREECH',null];
+    if(d.includes('pluribol')||d.includes('pluriball')) return ['ROLLO DE PLURIBALL',null];
+    if(d.includes('racionador')) return ['RACIONADOR',null];
+    if(d.includes('cinta')) return ['CINTAS',null];
+    if(d.includes('mts')) return ['ROLLOS DE CARTÓN',null];
+    return ['CINTAS',null];
+  }
+  return [cat,null];
+}
+const RUBRO_ORDEN=['CAJAS','ESTUCHES','ROLLOS DE CARTÓN','ROLLO DE PLURIBALL','CINTAS','STREECH','RACIONADOR'];
+const SUBRUBRO_ORDEN=['Cajas de aletas simples','Cajas DT','Cajas de Archivo','Cajas Usadas'];
+function poblarFiltrosVal(){
+  const sel=document.getElementById('vrMes');
+  if(!sel.options.length){
+    sel.innerHTML=DB.order.map(m=>`<option value="${m}">${m}</option>`).join('');
+    sel.value=DB.current;
+  }
+}
+function calcularValorizacion(){
+  const mes=document.getElementById('vrMes').value||DB.current;
+  const m=DB.months[mes]||{};
+  // rubros: { RUBRO: {unidades, plata, subs:{SUB:{unidades,plata}}} }
+  const rubros={};
+  RUBRO_ORDEN.forEach(r=>rubros[r]={unidades:0,plata:0,subs:{}});
+  for(const cat of CATS){
+    (m[cat]||[]).forEach(it=>{
+      const c=calcItem(it,cat);
+      const [r,sub]=clasificarRubro(it.desc,cat);
+      if(!rubros[r]) rubros[r]={unidades:0,plata:0,subs:{}};
+      rubros[r].unidades+=c.final;
+      rubros[r].plata+=c.valFinal;
+      if(sub){
+        if(!rubros[r].subs[sub]) rubros[r].subs[sub]={unidades:0,plata:0};
+        rubros[r].subs[sub].unidades+=c.final;
+        rubros[r].subs[sub].plata+=c.valFinal;
+      }
+    });
+  }
+  return {mes,rubros};
+}
+function renderValorizacion(){
+  const {mes,rubros}=calcularValorizacion();
+  let totU=0,totV=0;
+  let rows='';
+  RUBRO_ORDEN.forEach(r=>{
+    const R=rubros[r]; if(!R) return;
+    totU+=R.unidades; totV+=R.plata;
+    // título de rubro
+    rows+=`<tr style="background:#dfe6ee;font-weight:700"><td style="padding:6px 10px">${r}</td><td style="text-align:right;padding:6px 10px">${fmt(R.unidades)}</td><td style="text-align:right;padding:6px 10px">${money(R.plata)}</td></tr>`;
+    // subrubros (solo CAJAS los tiene)
+    SUBRUBRO_ORDEN.forEach(s=>{
+      if(R.subs[s]){
+        rows+=`<tr><td style="padding:4px 10px 4px 28px;color:#555">${s}</td><td style="text-align:right;padding:4px 10px;color:#555">${fmt(R.subs[s].unidades)}</td><td style="text-align:right;padding:4px 10px;color:#555">${money(R.subs[s].plata)}</td></tr>`;
+      }
+    });
+  });
+  window.__valData={mes,rubros,totU,totV};
+  document.getElementById('vrTabla').innerHTML=`<table style="width:100%;min-width:0;border-collapse:collapse;font-size:13px;table-layout:auto">
+    <thead><tr style="position:sticky;top:0;background:#0f3d63;color:#fff">
+      <th style="text-align:left;padding:7px 10px">Rubro</th><th style="text-align:right;padding:7px 10px;white-space:nowrap">Unidades</th><th style="text-align:right;padding:7px 10px;white-space:nowrap">Valor ($)</th>
+    </tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr style="background:#0f3d63;color:#fff;font-weight:700"><td style="padding:8px 10px">TOTAL VALORIZADO GENERAL</td><td style="text-align:right;padding:8px 10px">${fmt(totU)}</td><td style="text-align:right;padding:8px 10px">${money(totV)}</td></tr></tfoot></table>`;
+  document.getElementById('vrCount').textContent=`Mes: ${mes}`;
+}
+document.getElementById('vrMes').onchange=renderValorizacion;
+document.getElementById('vrExportCsv').onclick=()=>{
+  const d=window.__valData; if(!d){ toast('No hay datos'); return; }
+  let csv='Rubro;Subrubro;Unidades;Valor pesos\n';
+  RUBRO_ORDEN.forEach(r=>{
+    const R=d.rubros[r]; if(!R) return;
+    csv+=`${r};;${R.unidades};${Math.round(R.plata)}\n`;
+    SUBRUBRO_ORDEN.forEach(s=>{ if(R.subs[s]) csv+=`;${s};${R.subs[s].unidades};${Math.round(R.subs[s].plata)}\n`; });
+  });
+  csv+=`TOTAL GENERAL;;${d.totU};${Math.round(d.totV)}\n`;
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='valorizacion_'+d.mes.replace(/[^0-9a-zA-Z]/g,'_')+'.csv';a.click();
+  toast('Exportado a CSV');
+};
+document.getElementById('vrImprimir').onclick=()=>{
+  const d=window.__valData; if(!d){ toast('No hay datos'); return; }
+  const fecha=new Date().toLocaleDateString('es-AR');
+  let rows='';
+  RUBRO_ORDEN.forEach(r=>{
+    const R=d.rubros[r]; if(!R) return;
+    rows+=`<tr class="rubro"><td>${r}</td><td class="n">${fmt(R.unidades)}</td><td class="n">${money(R.plata)}</td></tr>`;
+    SUBRUBRO_ORDEN.forEach(s=>{ if(R.subs[s]) rows+=`<tr><td class="sub">${s}</td><td class="n">${fmt(R.subs[s].unidades)}</td><td class="n">${money(R.subs[s].plata)}</td></tr>`; });
+  });
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Valorización ${d.mes}</title>
+  <style>@page{size:A4 portrait;margin:12mm}body{font-family:Arial;color:#111;margin:0}
+  h1{font-size:16px;margin:0 0 2px}.meta{font-size:11px;color:#444;margin-bottom:10px}
+  table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:6px 9px;font-size:12px}
+  th{background:#0f3d63;color:#fff;text-align:right;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  th:first-child{text-align:left}td.n{text-align:right}
+  tr.rubro td{background:#dfe6ee;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  td.sub{padding-left:26px;color:#555}
+  tfoot td{background:#0f3d63;color:#fff;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .noprint{margin:14px 0;text-align:center;display:flex;gap:10px;justify-content:center}.noprint button{padding:9px 18px;font-size:14px;font-weight:700;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  .b-imp{background:#2f5d8a}.b-close{background:#888}
+  @media print{.noprint{display:none}}</style></head><body>
+  <div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #0f3d63;padding-bottom:6px;margin-bottom:8px">
+    <img src="${LOGO_PRINT}" style="height:50px"><div><h1>Valorización del Stock por Rubro — ${d.mes}</h1><div class="meta">Emitido ${fecha}</div></div></div>
+  <table><thead><tr><th>Rubro</th><th>Unidades</th><th>Valor ($)</th></tr></thead>
+  <tbody>${rows}</tbody>
+  <tfoot><tr><td>TOTAL VALORIZADO GENERAL</td><td class="n">${fmt(d.totU)}</td><td class="n">${money(d.totV)}</td></tr></tfoot></table>
   <div class="noprint"><button class="b-imp" onclick="window.print()">🖨 Imprimir / Guardar PDF</button><button class="b-close" onclick="window.close()">✕ Cerrar</button></div></body></html>`;
   const w=window.open('','_blank');
   if(!w){ toast('Permití las ventanas emergentes'); return; }
